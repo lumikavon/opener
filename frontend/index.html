@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Opener</title>
+  <link rel="stylesheet" href="./dist/output.css">
+  <style>
+    /* Inline critical styles for faster initial render */
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a2e;
+      color: #eee;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .drag-region { -webkit-app-region: drag; }
+    .no-drag { -webkit-app-region: no-drag; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Main Window -->
+    <div class="flex flex-col h-screen">
+      <!-- Title Bar / Drag Region -->
+      <div class="drag-region flex items-center justify-between h-10 px-2 bg-gray-900 border-b border-gray-800">
+        <div class="flex items-center gap-2 px-2">
+          <svg class="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          <span class="text-sm font-medium text-gray-300" data-i18n="app.name">Opener</span>
+        </div>
+        <div class="flex no-drag">
+          <button id="btn-minimize" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Minimize" data-i18n-title="title_bar.minimize">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+            </svg>
+          </button>
+          <button id="btn-close" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors" title="Close" data-i18n-title="title_bar.close">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="flex items-center gap-2 p-3 bg-gray-900/50">
+        <div class="relative flex-1">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          <input
+            type="text"
+            id="search-input"
+            class="input pl-10 pr-4 py-2.5"
+            placeholder="Search..."
+            data-i18n-placeholder="search.placeholder"
+            autocomplete="off"
+            autofocus
+          >
+        </div>
+        <button id="btn-settings" class="btn-ghost p-2.5 rounded-lg" title="Settings" data-i18n-title="settings.title">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Results List -->
+      <div id="results-container" class="flex-1 overflow-y-auto px-3 pb-3">
+        <div id="results-list" class="space-y-1">
+          <!-- Results will be rendered here -->
+        </div>
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center h-full text-gray-500">
+          <svg class="w-12 h-12 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p data-i18n="search.empty">No matching results</p>
+        </div>
+        <div id="loading-state" class="hidden flex flex-col items-center justify-center h-full text-gray-500">
+          <svg class="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal-overlay hidden">
+      <div class="modal flex flex-col animate-fade-in" style="width: 900px; height: 600px;">
+        <!-- Modal Header -->
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 class="text-lg font-semibold" data-i18n="settings.title">Settings</h2>
+          <button id="btn-close-settings" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Modal Content -->
+        <div class="flex flex-1 overflow-hidden">
+          <!-- Sidebar -->
+          <div class="w-48 border-r border-gray-700 p-3">
+            <nav class="space-y-1">
+              <div class="sidebar-item active" data-tab="entries">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                </svg>
+                <span data-i18n="settings.sidebar.entries">Entries</span>
+              </div>
+              <div class="sidebar-item" data-tab="hotkeys">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"/>
+                </svg>
+                <span data-i18n="settings.sidebar.hotkeys">Hotkeys</span>
+              </div>
+              <div class="sidebar-item" data-tab="display">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                </svg>
+                <span data-i18n="settings.sidebar.display">Display</span>
+              </div>
+              <div class="sidebar-item" data-tab="templates">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+                </svg>
+                <span data-i18n="settings.sidebar.templates">Templates</span>
+              </div>
+              <div class="sidebar-item" data-tab="import-export">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                </svg>
+                <span data-i18n="settings.sidebar.import_export">Import/Export</span>
+              </div>
+              <div class="sidebar-item" data-tab="about">
+                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <span data-i18n="settings.sidebar.about">About</span>
+              </div>
+            </nav>
+          </div>
+
+          <!-- Tab Content -->
+          <div class="flex-1 overflow-y-auto p-6">
+            <!-- Entries Tab -->
+            <div id="tab-entries" class="tab-content">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium" data-i18n="settings.entries.title">Manage Entries</h3>
+                <button id="btn-add-entry" class="btn-primary flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  <span data-i18n="settings.entries.add">Add Entry</span>
+                </button>
+              </div>
+              <div id="entries-list" class="space-y-2">
+                <!-- Entries will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Hotkeys Tab -->
+            <div id="tab-hotkeys" class="tab-content hidden">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium" data-i18n="settings.hotkeys.title">Hotkey Bindings</h3>
+              </div>
+              <div id="hotkeys-list" class="space-y-2">
+                <!-- Hotkeys will be rendered here -->
+              </div>
+              <p class="text-sm text-gray-500 mt-4" data-i18n="settings.hotkeys.help">
+                Bind keyboard shortcuts to entries for quick access. Supports both application-level and global hotkeys.
+              </p>
+            </div>
+
+            <!-- Display Tab -->
+            <div id="tab-display" class="tab-content hidden">
+              <h3 class="text-lg font-medium mb-4" data-i18n="settings.display.title">Display & Sorting</h3>
+              <div class="space-y-6">
+                <div>
+                  <label class="label" data-i18n="settings.display.language">Language</label>
+                  <select id="setting-language" class="input">
+                    <option value="zh-CN" data-i18n="settings.display.language_options.zh">简体中文</option>
+                    <option value="en-US" data-i18n="settings.display.language_options.en">English</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" data-i18n="settings.display.icon_size">Icon Size</label>
+                  <select id="setting-icon-size" class="input">
+                    <option value="16">16px</option>
+                    <option value="24">24px</option>
+                    <option value="32">32px</option>
+                    <option value="48">48px</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" data-i18n="settings.display.sort_by">Sort By</label>
+                  <select id="setting-sort-strategy" class="input">
+                    <option value="relevance" data-i18n="settings.display.sort.relevance">Relevance</option>
+                    <option value="name" data-i18n="settings.display.sort.name">Name</option>
+                    <option value="recently_used" data-i18n="settings.display.sort.recently_used">Recently Used</option>
+                    <option value="use_count" data-i18n="settings.display.sort.use_count">Most Used</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="label" data-i18n="settings.display.max_results">Max Results</label>
+                  <select id="setting-max-results" class="input">
+                    <option value="10">10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
+                </div>
+                <div class="space-y-3">
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-show-path" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.display.show_path">Show path/target</span>
+                  </label>
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-show-type" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.display.show_type">Show type label</span>
+                  </label>
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-show-desc" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.display.show_description">Show description</span>
+                  </label>
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-confirm-dangerous" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.display.confirm_dangerous">Confirm before running dangerous commands (Cmd/WSL/SSH/Script/AHK)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Templates Tab -->
+            <div id="tab-templates" class="tab-content hidden">
+              <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium" data-i18n="settings.templates.title">Script Templates</h3>
+                <button id="btn-add-template" class="btn-primary flex items-center gap-2">
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                  </svg>
+                  <span data-i18n="settings.templates.add">Add Template</span>
+                </button>
+              </div>
+              <div id="templates-list" class="space-y-2">
+                <!-- Templates will be rendered here -->
+              </div>
+            </div>
+
+            <!-- Import/Export Tab -->
+            <div id="tab-import-export" class="tab-content hidden">
+              <h3 class="text-lg font-medium mb-4" data-i18n="settings.import_export.title">Import & Export</h3>
+              <div class="space-y-6">
+                <div class="card p-4">
+                  <h4 class="font-medium mb-2" data-i18n="settings.import_export.export_title">Export Configuration</h4>
+                  <p class="text-sm text-gray-400 mb-3" data-i18n="settings.import_export.export_desc">Export all entries, hotkeys, settings, and templates to a JSON file.</p>
+                  <button id="btn-export" class="btn-primary" data-i18n="settings.import_export.export_button">Export to File</button>
+                </div>
+                <div class="card p-4">
+                  <h4 class="font-medium mb-2" data-i18n="settings.import_export.import_title">Import Configuration</h4>
+                  <p class="text-sm text-gray-400 mb-3" data-i18n="settings.import_export.import_desc">Import configuration from a previously exported JSON file.</p>
+                  <div class="space-y-3">
+                    <div>
+                      <label class="label" data-i18n="settings.import_export.import_strategy">Import Strategy</label>
+                      <select id="import-strategy" class="input">
+                        <option value="add_only" data-i18n="settings.import_export.import_options.add_only">Add only (skip existing)</option>
+                        <option value="merge_by_name" data-i18n="settings.import_export.import_options.merge_by_name">Merge by name (update existing)</option>
+                        <option value="overwrite_all" data-i18n="settings.import_export.import_options.overwrite_all">Overwrite all (replace everything)</option>
+                      </select>
+                    </div>
+                    <button id="btn-import" class="btn-secondary" data-i18n="settings.import_export.import_button">Import from File</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- About Tab -->
+            <div id="tab-about" class="tab-content hidden">
+              <h3 class="text-lg font-medium mb-4" data-i18n="settings.about.title">About Opener</h3>
+              <div class="card p-6 text-center">
+                <svg class="w-16 h-16 mx-auto text-primary-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+                <h4 class="text-xl font-bold mb-2" data-i18n="app.name">Opener</h4>
+                <p class="text-gray-400 mb-4" data-i18n="settings.about.subtitle">Desktop Launcher Application</p>
+                <p class="text-sm text-gray-500" data-i18n="settings.about.version">Version 1.0.0</p>
+                <div class="mt-6 pt-6 border-t border-gray-700 text-sm text-gray-400">
+                  <p data-i18n="settings.about.built_with">Built with Tauri v2, HTML5, TailwindCSS, and SQLite</p>
+                  <p class="mt-2" data-i18n="settings.about.offline">All dependencies are bundled locally - no internet required</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Entry Edit Modal -->
+    <div id="entry-modal" class="modal-overlay hidden">
+      <div class="modal animate-fade-in" style="width: 600px; max-height: 80vh;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 id="entry-modal-title" class="text-lg font-semibold" data-i18n="entry.modal_add">Add Entry</h2>
+          <button id="btn-close-entry-modal" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto" style="max-height: calc(80vh - 140px);">
+          <form id="entry-form" class="space-y-4">
+            <input type="hidden" id="entry-id">
+            <div>
+              <label class="label" data-i18n="entry.fields.name">Name *</label>
+              <input type="text" id="entry-name" class="input" required>
+            </div>
+            <div>
+              <label class="label" data-i18n="entry.fields.type">Type *</label>
+              <select id="entry-type" class="input" required>
+                <option value="app" data-i18n="entry.type_options.app">Application</option>
+                <option value="url" data-i18n="entry.type_options.url">URL</option>
+                <option value="file" data-i18n="entry.type_options.file">File</option>
+                <option value="dir" data-i18n="entry.type_options.dir">Directory</option>
+                <option value="cmd" data-i18n="entry.type_options.cmd">Command</option>
+                <option value="wsl" data-i18n="entry.type_options.wsl">WSL</option>
+                <option value="ssh" data-i18n="entry.type_options.ssh">SSH</option>
+                <option value="script" data-i18n="entry.type_options.script">Script</option>
+                <option value="shortcut" data-i18n="entry.type_options.shortcut">Shortcut (.lnk)</option>
+                <option value="ahk" data-i18n="entry.type_options.ahk">AutoHotkey</option>
+              </select>
+            </div>
+            <div id="field-target">
+              <label class="label" data-i18n="entry.fields.target">Target *</label>
+              <div class="flex gap-2">
+                <input type="text" id="entry-target" class="input flex-1" required>
+                <button type="button" id="btn-browse-target" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+              </div>
+            </div>
+            <div id="field-args">
+              <label class="label" data-i18n="entry.fields.args">Arguments</label>
+              <input type="text" id="entry-args" class="input" placeholder="Optional arguments" data-i18n-placeholder="entry.placeholders.args">
+            </div>
+            <div id="field-workdir">
+              <label class="label" data-i18n="entry.fields.workdir">Working Directory</label>
+              <div class="flex gap-2">
+                <input type="text" id="entry-workdir" class="input flex-1">
+                <button type="button" id="btn-browse-workdir" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+              </div>
+            </div>
+            <div id="field-description">
+              <label class="label" data-i18n="entry.fields.description">Description</label>
+              <input type="text" id="entry-description" class="input" placeholder="Optional description" data-i18n-placeholder="entry.placeholders.description">
+            </div>
+            <div id="field-tags">
+              <label class="label" data-i18n="entry.fields.tags">Tags</label>
+              <input type="text" id="entry-tags" class="input" placeholder="Comma-separated tags" data-i18n-placeholder="entry.placeholders.tags">
+            </div>
+            <div id="field-icon">
+              <label class="label" data-i18n="entry.fields.icon_path">Icon Path</label>
+              <div class="flex gap-2">
+                <input type="text" id="entry-icon" class="input flex-1">
+                <button type="button" id="btn-browse-icon" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+              </div>
+            </div>
+
+            <!-- SSH-specific fields -->
+            <div id="field-ssh" class="hidden space-y-4">
+              <div>
+                <label class="label" data-i18n="entry.fields.ssh_host">SSH Host *</label>
+                <input type="text" id="entry-ssh-host" class="input" placeholder="hostname or IP" data-i18n-placeholder="entry.placeholders.ssh_host">
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="label" data-i18n="entry.fields.ssh_user">SSH User</label>
+                  <input type="text" id="entry-ssh-user" class="input" placeholder="root" data-i18n-placeholder="entry.placeholders.ssh_user">
+                </div>
+                <div>
+                  <label class="label" data-i18n="entry.fields.ssh_port">SSH Port</label>
+                  <input type="number" id="entry-ssh-port" class="input" placeholder="22">
+                </div>
+              </div>
+            </div>
+
+            <!-- WSL-specific fields -->
+            <div id="field-wsl" class="hidden">
+              <label class="label" data-i18n="entry.fields.wsl_distro">WSL Distribution</label>
+              <input type="text" id="entry-wsl-distro" class="input" placeholder="Ubuntu" data-i18n-placeholder="entry.placeholders.wsl_distro">
+            </div>
+
+            <!-- Script-specific fields -->
+            <div id="field-script" class="hidden">
+              <label class="label" data-i18n="entry.fields.script_content">Script Content</label>
+              <textarea id="entry-script-content" class="input h-32 font-mono text-sm" placeholder="Enter script content..." data-i18n-placeholder="entry.placeholders.script_content"></textarea>
+            </div>
+
+            <div class="flex items-center gap-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="entry-show-terminal" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                <span class="text-sm" data-i18n="entry.fields.show_terminal">Show terminal window</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="entry-confirm" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                <span class="text-sm" data-i18n="entry.fields.require_confirm">Require confirmation</span>
+              </label>
+            </div>
+          </form>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+          <button type="button" id="btn-cancel-entry" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
+          <button type="submit" form="entry-form" class="btn-primary" data-i18n="actions.save">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template Edit Modal -->
+    <div id="template-modal" class="modal-overlay hidden">
+      <div class="modal animate-fade-in" style="width: 700px; max-height: 85vh;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 id="template-modal-title" class="text-lg font-semibold" data-i18n="template.modal_add">Add Template</h2>
+          <button id="btn-close-template-modal" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto" style="max-height: calc(85vh - 140px);">
+          <form id="template-form" class="space-y-4">
+            <input type="hidden" id="template-id">
+            <div>
+              <label class="label" data-i18n="template.fields.name">Name *</label>
+              <input type="text" id="template-name" class="input" required>
+            </div>
+            <div>
+              <label class="label" data-i18n="template.fields.description">Description</label>
+              <input type="text" id="template-description" class="input">
+            </div>
+            <div>
+              <label class="label" data-i18n="template.fields.language">Language/Type</label>
+              <select id="template-language" class="input">
+                <option value="shell" data-i18n="template.languages.shell">Shell (bash/sh)</option>
+                <option value="powershell" data-i18n="template.languages.powershell">PowerShell</option>
+                <option value="cmd" data-i18n="template.languages.cmd">CMD (Windows)</option>
+                <option value="python" data-i18n="template.languages.python">Python</option>
+                <option value="ssh" data-i18n="template.languages.ssh">SSH Command</option>
+                <option value="wsl" data-i18n="template.languages.wsl">WSL Command</option>
+              </select>
+            </div>
+            <div>
+              <label class="label" data-i18n="template.fields.content">Template Content *</label>
+              <textarea id="template-content" class="input h-32 font-mono text-sm" required placeholder="Use {{variable_name}} for variables" data-i18n-placeholder="template.placeholders.content"></textarea>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="template.helper.content_hint">Use {{variable_name}} syntax for variables</p>
+            </div>
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <label class="label mb-0" data-i18n="template.fields.variables">Variables</label>
+                <button type="button" id="btn-add-variable" class="text-primary-500 text-sm hover:text-primary-400" data-i18n="template.add_variable">+ Add Variable</button>
+              </div>
+              <div id="template-variables" class="space-y-3">
+                <!-- Variables will be rendered here -->
+              </div>
+            </div>
+          </form>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+          <button type="button" id="btn-cancel-template" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
+          <button type="submit" form="template-form" class="btn-primary" data-i18n="actions.save">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Use Template Modal -->
+    <div id="use-template-modal" class="modal-overlay hidden">
+      <div class="modal animate-fade-in" style="width: 500px;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 id="use-template-title" class="text-lg font-semibold" data-i18n="template.modal_use">Use Template</h2>
+          <button id="btn-close-use-template" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6">
+          <form id="use-template-form" class="space-y-4">
+            <input type="hidden" id="use-template-id">
+            <div>
+              <label class="label" data-i18n="template.fields.entry_name">Entry Name *</label>
+              <input type="text" id="use-template-entry-name" class="input" required>
+            </div>
+            <div id="use-template-variables" class="space-y-4">
+              <!-- Dynamic variables form will be rendered here -->
+            </div>
+            <div>
+              <label class="label" data-i18n="template.fields.preview">Preview</label>
+              <pre id="use-template-preview" class="input bg-gray-900 font-mono text-sm p-3 overflow-x-auto"></pre>
+            </div>
+          </form>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+          <button type="button" id="btn-cancel-use-template" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
+          <button type="submit" form="use-template-form" class="btn-primary" data-i18n="template.create_entry">Create Entry</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal-overlay hidden">
+      <div class="modal animate-fade-in" style="width: 450px;">
+        <div class="p-6">
+          <div class="flex items-center gap-4 mb-4">
+            <div class="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+              <svg class="w-6 h-6 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 id="confirm-title" class="text-lg font-semibold" data-i18n="confirm.title">Confirm Action</h3>
+              <p id="confirm-message" class="text-sm text-gray-400"></p>
+            </div>
+          </div>
+          <div id="confirm-details" class="bg-gray-900 rounded-lg p-3 mb-4 font-mono text-sm overflow-x-auto">
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+          <button id="btn-confirm-cancel" class="btn-secondary" data-i18n="confirm.cancel">Cancel</button>
+          <button id="btn-confirm-ok" class="btn-danger" data-i18n="confirm.execute">Execute</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hotkey Edit Modal -->
+    <div id="hotkey-modal" class="modal-overlay hidden">
+      <div class="modal animate-fade-in" style="width: 450px;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 class="text-lg font-semibold" data-i18n="hotkeys.modal_add">Add Hotkey</h2>
+          <button id="btn-close-hotkey-modal" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6">
+          <form id="hotkey-form" class="space-y-4">
+            <input type="hidden" id="hotkey-id">
+            <div>
+              <label class="label" data-i18n="hotkeys.fields.entry">Entry *</label>
+              <select id="hotkey-entry" class="input" required>
+                <!-- Entries will be populated here -->
+              </select>
+            </div>
+            <div>
+              <label class="label" data-i18n="hotkeys.fields.shortcut">Shortcut *</label>
+              <input type="text" id="hotkey-accelerator" class="input" placeholder="Press keys..." data-i18n-placeholder="hotkeys.placeholders.shortcut" readonly required>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="hotkeys.helper">Click and press your desired key combination</p>
+            </div>
+            <div>
+              <label class="label" data-i18n="hotkeys.fields.scope">Scope</label>
+              <select id="hotkey-scope" class="input">
+                <option value="app" data-i18n="hotkeys.scope_options.app">Application (only when focused)</option>
+                <option value="global" data-i18n="hotkeys.scope_options.global">Global (system-wide)</option>
+              </select>
+            </div>
+          </form>
+        </div>
+        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
+          <button type="button" id="btn-cancel-hotkey" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
+          <button type="submit" form="hotkey-form" class="btn-primary" data-i18n="actions.save">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2">
+    </div>
+  </div>
+
+  <script type="module" src="./src/app.js"></script>
+</body>
+</html>

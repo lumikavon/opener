@@ -1,0 +1,174 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  :root {
+    --color-bg: #1a1a2e;
+    --color-bg-secondary: #16213e;
+    --color-bg-tertiary: #0f3460;
+    --color-text: #eee;
+    --color-text-secondary: #aaa;
+    --color-border: #333;
+    --color-accent: #0ea5e9;
+  }
+
+  body {
+    @apply bg-[var(--color-bg)] text-[var(--color-text)] font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-lg font-medium transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-[var(--color-bg)];
+  }
+
+  .btn-primary {
+    @apply btn bg-primary-600 hover:bg-primary-700 text-white focus:ring-primary-500;
+  }
+
+  .btn-secondary {
+    @apply btn bg-gray-700 hover:bg-gray-600 text-white focus:ring-gray-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-red-600 hover:bg-red-700 text-white focus:ring-red-500;
+  }
+
+  .btn-ghost {
+    @apply btn bg-transparent hover:bg-gray-700 text-gray-300 hover:text-white;
+  }
+
+  .input {
+    @apply w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent;
+  }
+
+  select.input {
+    @apply bg-gray-800 text-gray-100;
+    color-scheme: dark;
+  }
+
+  select.input option,
+  select.input optgroup {
+    @apply bg-gray-800 text-gray-100;
+  }
+
+  .input-error {
+    @apply input border-red-500 focus:ring-red-500;
+  }
+
+  .label {
+    @apply block text-sm font-medium text-gray-300 mb-1;
+  }
+
+  .card {
+    @apply bg-gray-800 rounded-lg border border-gray-700;
+  }
+
+  .entry-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors duration-100;
+  }
+
+  .entry-item:hover {
+    @apply bg-gray-700;
+  }
+
+  .entry-item.selected {
+    @apply bg-primary-600/30 border border-primary-500/50;
+  }
+
+  .type-badge {
+    @apply px-2 py-0.5 text-xs font-medium rounded;
+  }
+
+  .type-badge.app { @apply bg-blue-500/20 text-blue-400; }
+  .type-badge.url { @apply bg-green-500/20 text-green-400; }
+  .type-badge.file { @apply bg-yellow-500/20 text-yellow-400; }
+  .type-badge.dir { @apply bg-orange-500/20 text-orange-400; }
+  .type-badge.cmd { @apply bg-purple-500/20 text-purple-400; }
+  .type-badge.wsl { @apply bg-pink-500/20 text-pink-400; }
+  .type-badge.ssh { @apply bg-cyan-500/20 text-cyan-400; }
+  .type-badge.script { @apply bg-indigo-500/20 text-indigo-400; }
+  .type-badge.shortcut { @apply bg-teal-500/20 text-teal-400; }
+  .type-badge.ahk { @apply bg-rose-500/20 text-rose-400; }
+
+  .modal-overlay {
+    @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50;
+  }
+
+  .modal {
+    @apply bg-gray-800 rounded-xl shadow-2xl border border-gray-700 max-w-4xl w-full max-h-[90vh] overflow-hidden;
+  }
+
+  .tab {
+    @apply px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors cursor-pointer border-b-2 border-transparent;
+  }
+
+  .tab.active {
+    @apply text-white border-primary-500;
+  }
+
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-2.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors;
+  }
+
+  .sidebar-item.active {
+    @apply text-white bg-gray-700;
+  }
+}
+
+/* Drag region for frameless window */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Animations */
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.15s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
