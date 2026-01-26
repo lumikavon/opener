@@ -12,6 +12,7 @@
     --color-text-secondary: #aaa;
     --color-border: #333;
     --color-accent: #0ea5e9;
+    color-scheme: dark;
   }
 
   body {
@@ -66,13 +67,17 @@
   }
 
   select.input {
-    @apply bg-gray-800 text-gray-100;
+    @apply bg-gray-900 text-gray-100 border-gray-600;
     color-scheme: dark;
   }
 
   select.input option,
   select.input optgroup {
-    @apply bg-gray-800 text-gray-100;
+    @apply bg-gray-900 text-gray-100;
+  }
+
+  select.input option:checked {
+    @apply bg-gray-700 text-white;
   }
 
   .input-error {

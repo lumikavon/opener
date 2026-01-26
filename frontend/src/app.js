@@ -2,6 +2,7 @@
 // Main Frontend Application
 
 const { invoke } = window.__TAURI__.core;
+const { listen } = window.__TAURI__.event;
 
 // ==================== State Management ====================
 
@@ -48,7 +49,7 @@ const translations = {
       },
       hotkeys: {
         title: '快捷键绑定',
-        help: '为条目绑定快捷键以便快速访问。支持应用内和全局快捷键。',
+        help: '为条目绑定全局快捷键以便快速访问（系统范围）。',
       },
       display: {
         title: '显示与排序',
@@ -331,7 +332,7 @@ const translations = {
       },
       hotkeys: {
         title: 'Hotkey Bindings',
-        help: 'Bind keyboard shortcuts to entries for quick access. Supports both application-level and global hotkeys.',
+        help: 'Bind global shortcuts to entries for quick access (system-wide).',
       },
       display: {
         title: 'Display & Sorting',
@@ -918,13 +919,18 @@ async function importData(strategy) {
 
 // ==================== UI Rendering ====================
 
-function renderSearchResults(results) {
+function renderSearchResults(results, options = {}) {
   const container = document.getElementById('results-list');
   const emptyState = document.getElementById('empty-state');
+  const showEmptyState = options.showEmptyState !== false;
 
   if (results.length === 0) {
     container.innerHTML = '';
-    emptyState.classList.remove('hidden');
+    if (showEmptyState) {
+      emptyState.classList.remove('hidden');
+    } else {
+      emptyState.classList.add('hidden');
+    }
     return;
   }
 
@@ -1136,13 +1142,8 @@ async function handleSearch(query) {
   state.selectedIndex = 0;
 
   if (query.trim() === '') {
-    // Show all enabled entries when search is empty
-    const results = state.entries
-      .filter(e => e.enabled)
-      .slice(0, state.settings?.max_results || 50)
-      .map(entry => ({ entry, score: 0 }));
-    state.searchResults = results;
-    renderSearchResults(results);
+    state.searchResults = [];
+    renderSearchResults([], { showEmptyState: false });
   } else {
     const results = await searchEntries(query);
     state.searchResults = results;
@@ -1212,6 +1213,20 @@ function handleKeyboardNavigation(e) {
       }
       break;
   }
+}
+
+function focusSearchInput() {
+  const searchInput = document.getElementById('search-input');
+  if (!searchInput) return;
+  if (document.activeElement === searchInput) return;
+  searchInput.focus();
+}
+
+function shouldFocusSearchOnClick(target) {
+  if (!target) return false;
+  if (target.closest('.modal')) return false;
+  if (target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return false;
+  return true;
 }
 
 function scrollToSelected() {
@@ -1450,7 +1465,7 @@ async function handleHotkeyFormSubmit(e) {
 
   const entryId = document.getElementById('hotkey-entry').value;
   const accelerator = document.getElementById('hotkey-accelerator').value;
-  const scope = document.getElementById('hotkey-scope').value;
+  const scope = 'global';
 
   try {
     await createHotkey(entryId, accelerator, scope);
@@ -1897,6 +1912,18 @@ function setupHotkeyRecording() {
   });
 }
 
+async function registerGlobalHotkeyListener() {
+  try {
+    await listen('hotkey-triggered', async (event) => {
+      const entryId = event?.payload?.entry_id;
+      if (!entryId) return;
+      await handleEntryExecution(entryId);
+    });
+  } catch (error) {
+    console.error('Failed to register global hotkey listener:', error);
+  }
+}
+
 // ==================== Settings Sync ====================
 
 async function handleSettingsChange() {
@@ -1998,6 +2025,7 @@ async function init() {
   await loadAllData();
 
   applyLanguage(state.settings?.language || DEFAULT_LANGUAGE);
+  await registerGlobalHotkeyListener();
 
   // Initial search (show all entries)
   handleSearch('');
@@ -2008,6 +2036,21 @@ async function init() {
 
   searchInput.addEventListener('input', (e) => {
     debouncedSearch(e.target.value);
+  });
+
+  // Focus search input by default
+  requestAnimationFrame(() => {
+    focusSearchInput();
+  });
+
+  window.addEventListener('focus', () => {
+    focusSearchInput();
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (shouldFocusSearchOnClick(e.target)) {
+      focusSearchInput();
+    }
   });
 
   // Setup keyboard navigation

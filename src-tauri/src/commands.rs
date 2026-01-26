@@ -1,12 +1,13 @@
 // Tauri commands module - exposes functionality to the frontend
 
-use crate::database::{ImportResult, DatabaseError};
+use crate::database::{DatabaseError, ImportResult};
+use crate::hotkeys;
 use crate::models::*;
 use crate::{executor, security};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
-use tauri::{State, Window};
+use tauri::{AppHandle, State, Window};
 use tauri_plugin_dialog::DialogExt;
 
 pub struct AppState {
@@ -68,6 +69,15 @@ impl From<serde_json::Error> for CommandError {
     }
 }
 
+impl From<serde_yaml::Error> for CommandError {
+    fn from(err: serde_yaml::Error) -> Self {
+        CommandError {
+            message: err.to_string(),
+            code: "YAML_ERROR".to_string(),
+        }
+    }
+}
+
 pub type CommandResult<T> = Result<T, CommandError>;
 
 fn lock_error() -> CommandError {
@@ -104,6 +114,37 @@ pub fn get_entry(state: State<AppState>, id: String) -> CommandResult<Entry> {
 pub fn create_entry(state: State<AppState>, input: CreateEntryInput) -> CommandResult<Entry> {
     let db = state.db.lock().map_err(|_| lock_error())?;
     Ok(db.create_entry(&input)?)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum YamlEntriesInput {
+    List(Vec<CreateEntryInput>),
+    Wrapped { entries: Vec<CreateEntryInput> },
+}
+
+#[derive(Debug, Serialize)]
+pub struct YamlImportResult {
+    pub created: i32,
+}
+
+#[tauri::command]
+pub fn import_entries_from_yaml(state: State<AppState>, yaml: String) -> CommandResult<YamlImportResult> {
+    let db = state.db.lock().map_err(|_| lock_error())?;
+    let parsed: YamlEntriesInput = serde_yaml::from_str(&yaml)?;
+
+    let entries = match parsed {
+        YamlEntriesInput::List(list) => list,
+        YamlEntriesInput::Wrapped { entries } => entries,
+    };
+
+    let mut created = 0;
+    for input in entries {
+        db.create_entry(&input)?;
+        created += 1;
+    }
+
+    Ok(YamlImportResult { created })
 }
 
 #[tauri::command]
@@ -159,14 +200,15 @@ pub fn get_all_hotkeys(state: State<AppState>) -> CommandResult<Vec<Hotkey>> {
 
 #[tauri::command]
 pub fn create_hotkey(
+    app: AppHandle,
     state: State<AppState>,
     entry_id: String,
     accelerator: String,
-    scope: String,
+    _scope: String,
 ) -> CommandResult<Hotkey> {
     let db = state.db.lock().map_err(|_| lock_error())?;
 
-    let scope_enum = HotkeyScope::from_str(&scope).unwrap_or(HotkeyScope::App);
+    let scope_enum = HotkeyScope::Global;
 
     // Check for conflicts
     if let Some(conflict) = db.check_hotkey_conflict(&accelerator, &scope_enum, None)? {
@@ -176,11 +218,24 @@ pub fn create_hotkey(
         });
     }
 
-    Ok(db.create_hotkey(&entry_id, &accelerator, scope_enum)?)
+    let hotkey = db.create_hotkey(&entry_id, &accelerator, scope_enum)?;
+    drop(db);
+
+    if let Err(error) = hotkeys::register_hotkey(&app, &hotkey) {
+        let db = state.db.lock().map_err(|_| lock_error())?;
+        let _ = db.delete_hotkey(&hotkey.id);
+        return Err(CommandError {
+            message: error,
+            code: "HOTKEY_REGISTER_FAILED".to_string(),
+        });
+    }
+
+    Ok(hotkey)
 }
 
 #[tauri::command]
 pub fn update_hotkey(
+    app: AppHandle,
     state: State<AppState>,
     id: String,
     accelerator: Option<String>,
@@ -189,7 +244,7 @@ pub fn update_hotkey(
 ) -> CommandResult<Hotkey> {
     let db = state.db.lock().map_err(|_| lock_error())?;
 
-    let scope_enum = scope.and_then(|s| HotkeyScope::from_str(&s));
+    let scope_enum = scope.as_ref().and_then(|s| HotkeyScope::from_str(s));
 
     // Check for conflicts if accelerator or scope changed
     if accelerator.is_some() || scope_enum.is_some() {
@@ -205,13 +260,48 @@ pub fn update_hotkey(
         }
     }
 
-    Ok(db.update_hotkey(&id, accelerator.as_deref(), scope_enum, enabled)?)
+    let current = db.get_hotkey(&id)?;
+    let updated = db.update_hotkey(&id, accelerator.as_deref(), scope_enum.clone(), enabled)?;
+    drop(db);
+
+    let accelerator_changed = accelerator
+        .as_ref()
+        .map(|value| value != &current.accelerator)
+        .unwrap_or(false);
+    let scope_changed = scope_enum
+        .as_ref()
+        .map(|value| *value != current.scope)
+        .unwrap_or(false);
+    let enabled_changed = enabled
+        .map(|value| value != current.enabled)
+        .unwrap_or(false);
+
+    if accelerator_changed || scope_changed || enabled_changed {
+        if let Err(error) = hotkeys::unregister_hotkey(&app, &current) {
+            log::warn!("Failed to unregister hotkey {}: {}", current.accelerator, error);
+        }
+
+        if let Err(error) = hotkeys::register_hotkey(&app, &updated) {
+            return Err(CommandError {
+                message: error,
+                code: "HOTKEY_REGISTER_FAILED".to_string(),
+            });
+        }
+    }
+
+    Ok(updated)
 }
 
 #[tauri::command]
-pub fn delete_hotkey(state: State<AppState>, id: String) -> CommandResult<()> {
+pub fn delete_hotkey(app: AppHandle, state: State<AppState>, id: String) -> CommandResult<()> {
     let db = state.db.lock().map_err(|_| lock_error())?;
+    let hotkey = db.get_hotkey(&id)?;
     db.delete_hotkey(&id)?;
+    drop(db);
+
+    if let Err(error) = hotkeys::unregister_hotkey(&app, &hotkey) {
+        log::warn!("Failed to unregister hotkey {}: {}", hotkey.accelerator, error);
+    }
     Ok(())
 }
 

@@ -6,6 +6,7 @@
 mod commands;
 mod database;
 mod executor;
+mod hotkeys;
 mod models;
 mod security;
 
@@ -28,7 +29,14 @@ fn main() {
             let db_path = app_data_dir.join("opener.db");
             let db = database::Database::new(&db_path).expect("Failed to initialize database");
 
+            let hotkeys = db.get_all_hotkeys().unwrap_or_else(|error| {
+                log::error!("Failed to load hotkeys: {}", error);
+                Vec::new()
+            });
+
             app.manage(AppState { db: std::sync::Mutex::new(db) });
+
+            hotkeys::register_all_hotkeys(&app.handle(), &hotkeys);
 
             Ok(())
         })
@@ -38,6 +46,7 @@ fn main() {
             commands::get_all_entries,
             commands::get_entry,
             commands::create_entry,
+            commands::import_entries_from_yaml,
             commands::update_entry,
             commands::delete_entry,
             commands::toggle_entry,

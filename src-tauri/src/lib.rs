@@ -2,6 +2,7 @@
 pub mod commands;
 pub mod database;
 pub mod executor;
+pub mod hotkeys;
 pub mod models;
 pub mod security;
 

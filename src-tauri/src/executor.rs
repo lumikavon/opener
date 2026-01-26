@@ -2,6 +2,8 @@
 
 use crate::models::{Entry, EntryType};
 use std::process::Command;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
