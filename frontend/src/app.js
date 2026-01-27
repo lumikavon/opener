@@ -15,6 +15,7 @@ const state = {
   selectedIndex: 0,
   currentTab: 'entries',
   searchDebounceTimer: null,
+  entriesSearchQuery: '',
 };
 
 const DEFAULT_LANGUAGE = 'zh-CN';
@@ -34,24 +35,21 @@ const translations = {
     },
     settings: {
       title: '设置',
-      sidebar: {
-        entries: '条目',
-        hotkeys: '快捷键',
-        display: '显示',
-        templates: '模板',
-        import_export: '导入/导出',
-        about: '关于',
-      },
+        sidebar: {
+          entries: '条目',
+          display: '显示',
+          templates: '模板',
+          import_export: '导入/导出',
+          about: '关于',
+        },
       entries: {
         title: '管理条目',
         add: '新增条目',
         empty: '暂无条目。点击“新增条目”创建。',
+        search_placeholder: '搜索条目...',
+        no_match: '没有匹配的条目。',
       },
-      hotkeys: {
-        title: '快捷键绑定',
-        help: '为条目绑定全局快捷键以便快速访问（系统范围）。',
-      },
-      display: {
+        display: {
         title: '显示与排序',
         icon_size: '图标大小',
         sort_by: '排序方式',
@@ -67,6 +65,10 @@ const translations = {
         show_type: '显示类型标签',
         show_description: '显示描述',
         confirm_dangerous: '运行危险命令前确认（Cmd/WSL/SSH/脚本/AHK）',
+        auto_launch: '开机自启动',
+        app_hotkey: '快捷键（切换显示/隐藏）',
+        app_hotkey_hint: '点击并按下快捷键，用于切换 Opener 显示与隐藏。',
+        app_hotkey_placeholder: '按下组合键...',
         language_options: {
           zh: '简体中文',
           en: 'English',
@@ -107,11 +109,17 @@ const translations = {
         name: '名称 *',
         type: '类型 *',
         target: '目标 *',
+        app_name: '应用名称 *',
+        hotkey: '快捷键 *',
         args: '参数',
         workdir: '工作目录',
         description: '描述',
         tags: '标签',
+        global_hotkey: '全局快捷键（可选）',
         icon_path: '图标路径',
+        hotkey_filter: '窗口匹配 *',
+        hotkey_position: '窗口位置 *',
+        hotkey_detect_hidden: '检测隐藏窗口',
         ssh_host: 'SSH 主机 *',
         ssh_user: 'SSH 用户',
         ssh_port: 'SSH 端口',
@@ -124,10 +132,16 @@ const translations = {
         args: '可选参数',
         description: '可选描述',
         tags: '逗号分隔的标签',
+        global_hotkey: '按下组合键...',
+        hotkey_filter: '窗口标题或 ahk_exe 程序名',
         ssh_host: '主机名或 IP',
         ssh_user: 'root',
         wsl_distro: 'Ubuntu',
         script_content: '输入脚本内容...',
+      },
+      helpers: {
+        global_hotkey: '点击并按下所需组合键，留空则不绑定。',
+        hotkey_required: '点击并按下组合键（必填）。',
       },
       target_labels: {
         url: 'URL *',
@@ -136,6 +150,7 @@ const translations = {
         command: '命令 *',
         wsl_command: '命令 *',
         script_path: '脚本路径（或使用下方内容）',
+        executable: '可执行文件 *',
         target: '目标 *',
       },
       target_placeholders: {
@@ -145,6 +160,7 @@ const translations = {
         command: '要执行的命令',
         wsl_command: '要在 WSL 中执行的命令',
         script_path: '脚本文件路径（可选）',
+        executable: '可执行文件路径',
       },
       type_options: {
         app: '应用',
@@ -157,6 +173,7 @@ const translations = {
         script: '脚本',
         shortcut: '快捷方式 (.lnk)',
         ahk: 'AutoHotkey',
+        hotkey_app: 'HotKey应用',
       },
       type_labels: {
         app: '应用',
@@ -169,6 +186,12 @@ const translations = {
         script: '脚本',
         shortcut: '快捷方式',
         ahk: 'AHK',
+        hotkey_app: 'HOTKEY',
+      },
+      position_options: {
+        left: '左侧',
+        right: '右侧',
+        max: '最大化',
       },
       created_from_template: '由模板创建：{{name}}',
       disabled: '（已禁用）',
@@ -207,6 +230,7 @@ const translations = {
         powershell: 'PowerShell',
         cmd: 'CMD (Windows)',
         python: 'Python',
+        ahk: 'AutoHotkey',
         ssh: 'SSH 命令',
         wsl: 'WSL 命令',
       },
@@ -218,35 +242,12 @@ const translations = {
         boolean: '布尔',
       },
     },
-    hotkeys: {
-      modal_add: '新增快捷键',
-      fields: {
-        entry: '条目 *',
-        shortcut: '快捷键 *',
-        scope: '范围',
-      },
-      placeholders: {
-        shortcut: '按下组合键...',
-      },
-      helper: '点击并按下所需组合键',
-      scope_options: {
-        app: '应用内（仅焦点时）',
-        global: '全局（系统范围）',
-      },
-      scope_label: '范围：{{scope}}',
-      scope_app: '应用内',
-      scope_global: '全局',
-      empty: '未配置快捷键。选择一个条目添加快捷键。',
-      unknown_entry: '未知条目',
-    },
     confirm: {
       title: '确认操作',
       cancel: '取消',
       execute: '执行',
       delete_entry_title: '删除条目',
       delete_entry_message: '确定要删除“{{name}}”吗？',
-      delete_hotkey_title: '删除快捷键',
-      delete_hotkey_message: '确定要删除这个快捷键吗？',
       delete_template_title: '删除模板',
       delete_template_message: '确定要删除“{{name}}”吗？',
       execute_command_title: '执行命令',
@@ -260,9 +261,9 @@ const translations = {
       delete: '删除',
     },
     actions: {
-      add_hotkey: '新增快捷键',
       browse: '浏览',
       cancel: '取消',
+      clear: '清除',
       save: '保存',
       create_entry: '创建条目',
       edit: '编辑',
@@ -287,6 +288,8 @@ const translations = {
       settings_save_failed: '保存设置失败',
       hotkey_created: '快捷键已创建',
       hotkey_create_failed: '创建快捷键失败：{{error}}',
+      hotkey_updated: '快捷键已更新',
+      hotkey_update_failed: '更新快捷键失败：{{error}}',
       hotkey_deleted: '快捷键已删除',
       hotkey_delete_failed: '删除快捷键失败',
       template_created: '模板创建成功',
@@ -317,24 +320,21 @@ const translations = {
     },
     settings: {
       title: 'Settings',
-      sidebar: {
-        entries: 'Entries',
-        hotkeys: 'Hotkeys',
-        display: 'Display',
-        templates: 'Templates',
-        import_export: 'Import/Export',
-        about: 'About',
-      },
+        sidebar: {
+          entries: 'Entries',
+          display: 'Display',
+          templates: 'Templates',
+          import_export: 'Import/Export',
+          about: 'About',
+        },
       entries: {
         title: 'Manage Entries',
         add: 'Add Entry',
         empty: 'No entries yet. Click "Add Entry" to create one.',
+        search_placeholder: 'Search entries...',
+        no_match: 'No matching entries.',
       },
-      hotkeys: {
-        title: 'Hotkey Bindings',
-        help: 'Bind global shortcuts to entries for quick access (system-wide).',
-      },
-      display: {
+        display: {
         title: 'Display & Sorting',
         icon_size: 'Icon Size',
         sort_by: 'Sort By',
@@ -350,6 +350,10 @@ const translations = {
         show_type: 'Show type label',
         show_description: 'Show description',
         confirm_dangerous: 'Confirm before running dangerous commands (Cmd/WSL/SSH/Script/AHK)',
+        auto_launch: 'Launch on system startup',
+        app_hotkey: 'Hotkey (toggle show/hide)',
+        app_hotkey_hint: 'Click and press a hotkey to toggle Opener visibility.',
+        app_hotkey_placeholder: 'Press keys...',
         language_options: {
           zh: '简体中文',
           en: 'English',
@@ -390,11 +394,17 @@ const translations = {
         name: 'Name *',
         type: 'Type *',
         target: 'Target *',
+        app_name: 'App Name *',
+        hotkey: 'Hotkey *',
         args: 'Arguments',
         workdir: 'Working Directory',
         description: 'Description',
         tags: 'Tags',
+        global_hotkey: 'Global Hotkey (optional)',
         icon_path: 'Icon Path',
+        hotkey_filter: 'Window Filter *',
+        hotkey_position: 'Window Position *',
+        hotkey_detect_hidden: 'Detect hidden windows',
         ssh_host: 'SSH Host *',
         ssh_user: 'SSH User',
         ssh_port: 'SSH Port',
@@ -407,10 +417,16 @@ const translations = {
         args: 'Optional arguments',
         description: 'Optional description',
         tags: 'Comma-separated tags',
+        global_hotkey: 'Press keys...',
+        hotkey_filter: 'Window title or ahk_exe process',
         ssh_host: 'hostname or IP',
         ssh_user: 'root',
         wsl_distro: 'Ubuntu',
         script_content: 'Enter script content...',
+      },
+      helpers: {
+        global_hotkey: 'Click and press a key combination. Leave empty to skip.',
+        hotkey_required: 'Click and press a key combination (required).',
       },
       target_labels: {
         url: 'URL *',
@@ -419,6 +435,7 @@ const translations = {
         command: 'Command *',
         wsl_command: 'Command *',
         script_path: 'Script Path (or use content below)',
+        executable: 'Executable *',
         target: 'Target *',
       },
       target_placeholders: {
@@ -428,6 +445,7 @@ const translations = {
         command: 'Command to execute',
         wsl_command: 'Command to execute in WSL',
         script_path: 'Path to script file (optional)',
+        executable: 'Path to executable',
       },
       type_options: {
         app: 'Application',
@@ -440,6 +458,7 @@ const translations = {
         script: 'Script',
         shortcut: 'Shortcut (.lnk)',
         ahk: 'AutoHotkey',
+        hotkey_app: 'HotKey App',
       },
       type_labels: {
         app: 'APP',
@@ -452,6 +471,12 @@ const translations = {
         script: 'SCRIPT',
         shortcut: 'SHORTCUT',
         ahk: 'AHK',
+        hotkey_app: 'HOTKEY',
+      },
+      position_options: {
+        left: 'Left',
+        right: 'Right',
+        max: 'Maximize',
       },
       created_from_template: 'Created from template: {{name}}',
       disabled: '(disabled)',
@@ -490,6 +515,7 @@ const translations = {
         powershell: 'PowerShell',
         cmd: 'CMD (Windows)',
         python: 'Python',
+        ahk: 'AutoHotkey',
         ssh: 'SSH Command',
         wsl: 'WSL Command',
       },
@@ -501,35 +527,12 @@ const translations = {
         boolean: 'Boolean',
       },
     },
-    hotkeys: {
-      modal_add: 'Add Hotkey',
-      fields: {
-        entry: 'Entry *',
-        shortcut: 'Shortcut *',
-        scope: 'Scope',
-      },
-      placeholders: {
-        shortcut: 'Press keys...',
-      },
-      helper: 'Click and press your desired key combination',
-      scope_options: {
-        app: 'Application (only when focused)',
-        global: 'Global (system-wide)',
-      },
-      scope_label: 'Scope: {{scope}}',
-      scope_app: 'Application',
-      scope_global: 'Global',
-      empty: 'No hotkeys configured. Select an entry to add a hotkey.',
-      unknown_entry: 'Unknown Entry',
-    },
     confirm: {
       title: 'Confirm Action',
       cancel: 'Cancel',
       execute: 'Execute',
       delete_entry_title: 'Delete Entry',
       delete_entry_message: 'Are you sure you want to delete "{{name}}"?',
-      delete_hotkey_title: 'Delete Hotkey',
-      delete_hotkey_message: 'Are you sure you want to delete this hotkey?',
       delete_template_title: 'Delete Template',
       delete_template_message: 'Are you sure you want to delete "{{name}}"?',
       execute_command_title: 'Execute Command',
@@ -543,9 +546,9 @@ const translations = {
       delete: 'Delete',
     },
     actions: {
-      add_hotkey: 'Add Hotkey',
       browse: 'Browse',
       cancel: 'Cancel',
+      clear: 'Clear',
       save: 'Save',
       create_entry: 'Create Entry',
       edit: 'Edit',
@@ -570,6 +573,8 @@ const translations = {
       settings_save_failed: 'Failed to save settings',
       hotkey_created: 'Hotkey created',
       hotkey_create_failed: 'Failed to create hotkey: {{error}}',
+      hotkey_updated: 'Hotkey updated',
+      hotkey_update_failed: 'Failed to update hotkey: {{error}}',
       hotkey_deleted: 'Hotkey deleted',
       hotkey_delete_failed: 'Failed to delete hotkey',
       template_created: 'Template created',
@@ -686,15 +691,14 @@ function applyTranslations(language) {
   });
 }
 
-function applyLanguage(language) {
-  const normalized = normalizeLanguage(language || DEFAULT_LANGUAGE);
-  applyTranslations(normalized);
-  updateEntryFormFields();
-  renderEntriesList(state.entries);
-  renderHotkeysList(state.hotkeys);
-  renderTemplatesList(state.templates);
-  renderSearchResults(state.searchResults);
-}
+  function applyLanguage(language) {
+    const normalized = normalizeLanguage(language || DEFAULT_LANGUAGE);
+    applyTranslations(normalized);
+    updateEntryFormFields();
+    renderEntriesList(state.entries);
+    renderTemplatesList(state.templates);
+    renderSearchResults(state.searchResults);
+  }
 
 function getEntryTypeLabel(type) {
   const labels = getTranslationTable().entry?.type_labels || {};
@@ -825,6 +829,64 @@ async function deleteHotkey(id) {
     showToast(t('toasts.hotkey_delete_failed'), 'error');
     throw error;
   }
+}
+
+async function updateHotkey(id, accelerator, scope, enabled) {
+  try {
+    const hotkey = await invoke('update_hotkey', {
+      id,
+      accelerator,
+      scope,
+      enabled,
+    });
+    showToast(t('toasts.hotkey_updated'), 'success');
+    return hotkey;
+  } catch (error) {
+    console.error('Failed to update hotkey:', error);
+    showToast(t('toasts.hotkey_update_failed', { error: error.message }), 'error');
+    throw error;
+  }
+}
+
+function getEntryHotkeys(entryId) {
+  return state.hotkeys.filter(hotkey => hotkey.entry_id === entryId && hotkey.scope === 'global');
+}
+
+function getPreferredEntryHotkey(entryId) {
+  const matches = getEntryHotkeys(entryId);
+  const enabled = matches.find(hotkey => hotkey.enabled);
+  return enabled || matches[0] || null;
+}
+
+async function syncEntryHotkey(entryId, accelerator) {
+  const trimmed = accelerator.trim();
+  const matches = getEntryHotkeys(entryId);
+  const primary = getPreferredEntryHotkey(entryId);
+
+  if (!trimmed) {
+    for (const hotkey of matches) {
+      await deleteHotkey(hotkey.id);
+    }
+    await loadHotkeys();
+    return;
+  }
+
+  if (!primary) {
+    await createHotkey(entryId, trimmed, 'global');
+    await loadHotkeys();
+    return;
+  }
+
+  if (primary.accelerator !== trimmed || !primary.enabled || primary.scope !== 'global') {
+    await updateHotkey(primary.id, trimmed, 'global', true);
+  }
+
+  const extras = matches.filter(hotkey => hotkey.id !== primary.id);
+  for (const hotkey of extras) {
+    await deleteHotkey(hotkey.id);
+  }
+
+  await loadHotkeys();
 }
 
 async function getAllTemplates() {
@@ -996,6 +1058,20 @@ function renderSearchResults(results, options = {}) {
 function renderEntriesList(entries) {
   const container = document.getElementById('entries-list');
 
+  const query = state.entriesSearchQuery.trim().toLowerCase();
+  const filteredEntries = query ? entries.filter(entry => {
+    const haystack = [
+      entry.name,
+      entry.target,
+      entry.description,
+      entry.tags,
+      entry.type,
+      entry.hotkey_filter,
+      entry.hotkey_position,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(query);
+  }) : entries;
+
   if (entries.length === 0) {
     container.innerHTML = `
       <div class="text-center py-8 text-gray-500">
@@ -1005,7 +1081,16 @@ function renderEntriesList(entries) {
     return;
   }
 
-  container.innerHTML = entries.map(entry => `
+  if (filteredEntries.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-8 text-gray-500">
+        <p>${t('settings.entries.no_match')}</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = filteredEntries.map(entry => `
     <div class="card p-3 flex items-center gap-3">
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
@@ -1029,51 +1114,6 @@ function renderEntriesList(entries) {
       </div>
     </div>
   `).join('');
-}
-
-function renderHotkeysList(hotkeys) {
-  const container = document.getElementById('hotkeys-list');
-
-  const content = hotkeys.length === 0 ? `
-    <div class="text-center py-8 text-gray-500">
-      <p>${t('hotkeys.empty')}</p>
-    </div>
-  ` : hotkeys.map(hotkey => {
-    const entry = state.entries.find(e => e.id === hotkey.entry_id);
-    const scopeLabel = hotkey.scope === 'global' ? t('hotkeys.scope_global') : t('hotkeys.scope_app');
-    return `
-      <div class="card p-3 flex items-center gap-3">
-        <div class="flex-1">
-          <div class="flex items-center gap-2">
-            <span class="font-mono bg-gray-700 px-2 py-0.5 rounded text-sm">${escapeHtml(hotkey.accelerator)}</span>
-            <span class="text-gray-400">-></span>
-            <span>${entry ? escapeHtml(entry.name) : t('hotkeys.unknown_entry')}</span>
-          </div>
-          <div class="text-xs text-gray-500 mt-1">
-            ${t('hotkeys.scope_label', { scope: scopeLabel })}
-            ${!hotkey.enabled ? ` ${t('labels.disabled')}` : ''}
-          </div>
-        </div>
-        <button class="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300" onclick="confirmDeleteHotkey('${hotkey.id}')" title="${t('actions.delete')}">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-          </svg>
-        </button>
-      </div>
-    `;
-  }).join('');
-
-  container.innerHTML = `
-    ${content}
-    <button id="btn-add-hotkey" class="w-full btn-secondary mt-3 flex items-center justify-center gap-2">
-      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-      ${t('actions.add_hotkey')}
-    </button>
-  `;
-
-  document.getElementById('btn-add-hotkey').addEventListener('click', showAddHotkeyModal);
 }
 
 function renderTemplatesList(templates) {
@@ -1133,6 +1173,8 @@ function updateSettingsUI(settings) {
   document.getElementById('setting-show-type').checked = settings.show_type_label;
   document.getElementById('setting-show-desc').checked = settings.show_description;
   document.getElementById('setting-confirm-dangerous').checked = settings.confirm_dangerous_commands;
+  document.getElementById('setting-auto-launch').checked = settings.auto_launch === true;
+  document.getElementById('setting-app-hotkey').value = settings.app_hotkey || '';
   document.getElementById('setting-language').value = normalizeLanguage(settings.language || DEFAULT_LANGUAGE);
 }
 
@@ -1151,11 +1193,25 @@ async function handleSearch(query) {
   }
 }
 
+function handleEntriesSearchInput(e) {
+  state.entriesSearchQuery = e.target.value;
+  renderEntriesList(state.entries);
+}
+
+async function clearSearchAfterExecution() {
+  const searchInput = document.getElementById('search-input');
+  if (!searchInput) return;
+  if (searchInput.value) {
+    searchInput.value = '';
+  }
+  await handleSearch('');
+}
+
 async function handleEntryExecution(id) {
   const entry = state.entries.find(e => e.id === id);
   if (!entry) return;
 
-  const dangerousTypes = ['cmd', 'wsl', 'ssh', 'script', 'ahk'];
+  const dangerousTypes = ['cmd', 'wsl', 'ssh', 'script', 'ahk', 'hotkey_app'];
   const needsConfirmation = state.settings?.confirm_dangerous_commands &&
                             dangerousTypes.includes(entry.type) &&
                             entry.confirm_before_run !== false;
@@ -1167,10 +1223,12 @@ async function handleEntryExecution(id) {
       entry.target,
       async () => {
         await executeEntry(id);
+        await clearSearchAfterExecution();
       }
     );
   } else {
     await executeEntry(id);
+    await clearSearchAfterExecution();
   }
 }
 
@@ -1262,19 +1320,22 @@ function switchSettingsTab(tabName) {
   document.getElementById(`tab-${tabName}`).classList.remove('hidden');
 
   // Refresh content
-  if (tabName === 'entries') {
-    renderEntriesList(state.entries);
-  } else if (tabName === 'hotkeys') {
-    renderHotkeysList(state.hotkeys);
-  } else if (tabName === 'templates') {
-    renderTemplatesList(state.templates);
+    if (tabName === 'entries') {
+      renderEntriesList(state.entries);
+    } else if (tabName === 'templates') {
+      renderTemplatesList(state.templates);
+    }
   }
-}
 
 function showAddEntryModal() {
   document.getElementById('entry-modal-title').textContent = t('entry.modal_add');
   document.getElementById('entry-form').reset();
   document.getElementById('entry-id').value = '';
+  document.getElementById('entry-hotkey').value = '';
+  const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
+  if (hotkeyPositionInput) hotkeyPositionInput.dataset.touched = '';
+  const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+  if (detectHiddenInput) detectHiddenInput.dataset.touched = '';
   updateEntryFormFields();
   document.getElementById('entry-modal').classList.remove('hidden');
 }
@@ -1289,9 +1350,24 @@ function showEditEntryModal(entry) {
   document.getElementById('entry-workdir').value = entry.workdir || '';
   document.getElementById('entry-description').value = entry.description || '';
   document.getElementById('entry-tags').value = entry.tags || '';
+  const entryHotkey = getPreferredEntryHotkey(entry.id);
+  document.getElementById('entry-hotkey').value = entryHotkey ? entryHotkey.accelerator : '';
   document.getElementById('entry-icon').value = entry.icon_path || '';
   document.getElementById('entry-show-terminal').checked = entry.show_terminal || false;
   document.getElementById('entry-confirm').checked = entry.confirm_before_run || false;
+
+  // Hotkey app fields
+  document.getElementById('entry-hotkey-filter').value = entry.hotkey_filter || '';
+  const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
+  if (hotkeyPositionInput) {
+    hotkeyPositionInput.value = entry.hotkey_position || 'max';
+    hotkeyPositionInput.dataset.touched = 'true';
+  }
+  const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+  if (detectHiddenInput) {
+    detectHiddenInput.checked = entry.hotkey_detect_hidden !== false;
+    detectHiddenInput.dataset.touched = 'true';
+  }
 
   // SSH fields
   document.getElementById('entry-ssh-host').value = entry.ssh_host || '';
@@ -1314,6 +1390,50 @@ function closeEntryModal() {
   document.getElementById('entry-modal').classList.add('hidden');
 }
 
+function syncEntryFormRequirements() {
+  const type = document.getElementById('entry-type').value;
+  const targetInput = document.getElementById('entry-target');
+  const workdirInput = document.getElementById('entry-workdir');
+  const scriptContentInput = document.getElementById('entry-script-content');
+  const sshHostInput = document.getElementById('entry-ssh-host');
+  const sshUserInput = document.getElementById('entry-ssh-user');
+  const sshPortInput = document.getElementById('entry-ssh-port');
+  const hotkeyInput = document.getElementById('entry-hotkey');
+  const hotkeyFilterInput = document.getElementById('entry-hotkey-filter');
+  const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
+  const hotkeyDetectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+
+  const isSsh = type === 'ssh';
+  const isScript = type === 'script' || type === 'ahk';
+  const isHotkeyApp = type === 'hotkey_app';
+
+  targetInput.disabled = isSsh;
+  targetInput.required = !isSsh && !isScript;
+  workdirInput.required = isHotkeyApp;
+  hotkeyInput.required = isHotkeyApp;
+
+  sshHostInput.disabled = !isSsh;
+  sshHostInput.required = isSsh;
+  sshUserInput.disabled = !isSsh;
+  sshPortInput.disabled = !isSsh;
+
+  scriptContentInput.disabled = !isScript;
+  if (isScript) {
+    const hasTarget = targetInput.value.trim().length > 0;
+    const hasScript = scriptContentInput.value.trim().length > 0;
+    targetInput.required = !hasScript;
+    scriptContentInput.required = !hasTarget;
+  } else {
+    scriptContentInput.required = false;
+  }
+
+  hotkeyFilterInput.disabled = !isHotkeyApp;
+  hotkeyFilterInput.required = isHotkeyApp;
+  hotkeyPositionInput.disabled = !isHotkeyApp;
+  hotkeyPositionInput.required = isHotkeyApp;
+  hotkeyDetectHiddenInput.disabled = !isHotkeyApp;
+}
+
 function updateEntryFormFields() {
   const type = document.getElementById('entry-type').value;
 
@@ -1321,14 +1441,16 @@ function updateEntryFormFields() {
   const sshFields = document.getElementById('field-ssh');
   const wslFields = document.getElementById('field-wsl');
   const scriptFields = document.getElementById('field-script');
+  const hotkeyAppFields = document.getElementById('field-hotkey-app');
   const targetField = document.getElementById('field-target');
   const argsField = document.getElementById('field-args');
 
   sshFields.classList.toggle('hidden', type !== 'ssh');
   wslFields.classList.toggle('hidden', type !== 'wsl');
   scriptFields.classList.toggle('hidden', type !== 'script' && type !== 'ahk');
+  hotkeyAppFields.classList.toggle('hidden', type !== 'hotkey_app');
   targetField.classList.toggle('hidden', type === 'ssh');
-  argsField.classList.toggle('hidden', type === 'url' || type === 'ssh');
+  argsField.classList.toggle('hidden', type === 'url' || type === 'ssh' || type === 'hotkey_app');
 
   // Update target label and placeholder
   const targetLabel = targetField.querySelector('label');
@@ -1362,10 +1484,46 @@ function updateEntryFormFields() {
       targetLabel.textContent = t('entry.target_labels.script_path');
       targetInput.placeholder = t('entry.target_placeholders.script_path');
       break;
+    case 'hotkey_app':
+      targetLabel.textContent = t('entry.target_labels.executable');
+      targetInput.placeholder = t('entry.target_placeholders.executable');
+      break;
     default:
       targetLabel.textContent = t('entry.target_labels.target');
       targetInput.placeholder = '';
   }
+
+  const nameLabel = document.querySelector('#entry-name')?.closest('div')?.querySelector('label');
+  const hotkeyLabel = document.querySelector('#field-hotkey .label');
+  const hotkeyHelper = document.querySelector('#field-hotkey p');
+
+  if (type === 'hotkey_app') {
+    if (nameLabel) nameLabel.textContent = t('entry.fields.app_name');
+    if (hotkeyLabel) hotkeyLabel.textContent = t('entry.fields.hotkey');
+    if (hotkeyHelper) hotkeyHelper.textContent = t('entry.helpers.hotkey_required');
+
+    const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
+    if (hotkeyPositionInput && hotkeyPositionInput.dataset.touched !== 'true') {
+      hotkeyPositionInput.value = 'max';
+    }
+    const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+    if (detectHiddenInput && detectHiddenInput.dataset.touched !== 'true') {
+      detectHiddenInput.checked = true;
+    }
+  } else {
+    if (nameLabel) nameLabel.textContent = t('entry.fields.name');
+    if (hotkeyLabel) hotkeyLabel.textContent = t('entry.fields.global_hotkey');
+    if (hotkeyHelper) hotkeyHelper.textContent = t('entry.helpers.global_hotkey');
+  }
+
+  syncEntryFormRequirements();
+}
+
+function buildSshTarget(host, user, port) {
+  if (!host) return '';
+  const userPrefix = user ? `${user}@` : '';
+  const portSuffix = port && port !== 22 ? `:${port}` : '';
+  return `${userPrefix}${host}${portSuffix}`;
 }
 
 async function handleEntryFormSubmit(e) {
@@ -1374,31 +1532,50 @@ async function handleEntryFormSubmit(e) {
   const id = document.getElementById('entry-id').value;
   const type = document.getElementById('entry-type').value;
 
-  let target = document.getElementById('entry-target').value;
+  const targetInput = document.getElementById('entry-target');
+  let target = targetInput.value;
 
   // For script types, use script content if no path
-  if ((type === 'script' || type === 'ahk') && !target) {
-    target = document.getElementById('entry-script-content').value;
+  if ((type === 'script' || type === 'ahk') && !target.trim()) {
+    const scriptContent = document.getElementById('entry-script-content').value;
+    if (scriptContent.trim()) {
+      target = scriptContent;
+    }
   }
 
-  const input = {
-    name: document.getElementById('entry-name').value,
-    type: type,
-    target: target,
-    args: document.getElementById('entry-args').value || null,
-    workdir: document.getElementById('entry-workdir').value || null,
-    description: document.getElementById('entry-description').value || null,
-    tags: document.getElementById('entry-tags').value || null,
-    icon_path: document.getElementById('entry-icon').value || null,
-    show_terminal: document.getElementById('entry-show-terminal').checked,
-    confirm_before_run: document.getElementById('entry-confirm').checked,
-  };
+  let sshHost = '';
+  let sshUser = '';
+  let sshPort = 22;
+
+  if (type === 'ssh') {
+    sshHost = document.getElementById('entry-ssh-host').value.trim();
+    sshUser = document.getElementById('entry-ssh-user').value.trim();
+    const portValue = document.getElementById('entry-ssh-port').value;
+    const parsedPort = Number.parseInt(portValue, 10);
+    sshPort = Number.isNaN(parsedPort) || parsedPort <= 0 ? 22 : parsedPort;
+    target = buildSshTarget(sshHost, sshUser, sshPort);
+  }
+
+    const argsValue = type === 'hotkey_app' ? '' : document.getElementById('entry-args').value;
+    const input = {
+      name: document.getElementById('entry-name').value,
+      type: type,
+      target: target,
+      args: argsValue || null,
+      workdir: document.getElementById('entry-workdir').value || null,
+      description: document.getElementById('entry-description').value || null,
+      tags: document.getElementById('entry-tags').value || null,
+      icon_path: document.getElementById('entry-icon').value || null,
+      show_terminal: document.getElementById('entry-show-terminal').checked,
+      confirm_before_run: document.getElementById('entry-confirm').checked,
+    };
+    const hotkeyValue = document.getElementById('entry-hotkey').value.trim();
 
   // Add SSH fields
   if (type === 'ssh') {
-    input.ssh_host = document.getElementById('entry-ssh-host').value;
-    input.ssh_user = document.getElementById('entry-ssh-user').value || null;
-    input.ssh_port = parseInt(document.getElementById('entry-ssh-port').value) || 22;
+    input.ssh_host = sshHost || null;
+    input.ssh_user = sshUser || null;
+    input.ssh_port = sshPort;
   }
 
   // Add WSL fields
@@ -1406,16 +1583,34 @@ async function handleEntryFormSubmit(e) {
     input.wsl_distro = document.getElementById('entry-wsl-distro').value || null;
   }
 
-  try {
-    if (id) {
-      await updateEntry(id, input);
-    } else {
-      await createEntry(input);
-    }
+  // Add Hotkey App fields
+  if (type === 'hotkey_app') {
+    input.hotkey_filter = document.getElementById('entry-hotkey-filter').value || null;
+    input.hotkey_position = document.getElementById('entry-hotkey-position').value || 'max';
+    input.hotkey_detect_hidden = document.getElementById('entry-hotkey-detect-hidden').checked;
+  }
 
-    await loadAllData();
-    closeEntryModal();
-    renderEntriesList(state.entries);
+    try {
+      let savedEntry;
+      if (id) {
+        savedEntry = await updateEntry(id, input);
+      } else {
+        savedEntry = await createEntry(input);
+        document.getElementById('entry-id').value = savedEntry.id;
+        document.getElementById('entry-modal-title').textContent = t('entry.modal_edit');
+      }
+
+      try {
+        await syncEntryHotkey(savedEntry.id, hotkeyValue);
+      } catch (error) {
+        await loadAllData();
+        renderEntriesList(state.entries);
+        return;
+      }
+
+      await loadAllData();
+      closeEntryModal();
+      renderEntriesList(state.entries);
   } catch (error) {
     // Error already shown via toast
   }
@@ -1440,41 +1635,6 @@ function showConfirmModal(title, message, details, onConfirm) {
 
 function closeConfirmModal() {
   document.getElementById('confirm-modal').classList.add('hidden');
-}
-
-function showAddHotkeyModal() {
-  document.getElementById('hotkey-form').reset();
-  document.getElementById('hotkey-id').value = '';
-
-  // Populate entries dropdown
-  const select = document.getElementById('hotkey-entry');
-  select.innerHTML = state.entries
-    .filter(e => e.enabled)
-    .map(e => `<option value="${e.id}">${escapeHtml(e.name)}</option>`)
-    .join('');
-
-  document.getElementById('hotkey-modal').classList.remove('hidden');
-}
-
-function closeHotkeyModal() {
-  document.getElementById('hotkey-modal').classList.add('hidden');
-}
-
-async function handleHotkeyFormSubmit(e) {
-  e.preventDefault();
-
-  const entryId = document.getElementById('hotkey-entry').value;
-  const accelerator = document.getElementById('hotkey-accelerator').value;
-  const scope = 'global';
-
-  try {
-    await createHotkey(entryId, accelerator, scope);
-    await loadHotkeys();
-    closeHotkeyModal();
-    renderHotkeysList(state.hotkeys);
-  } catch (error) {
-    // Error already shown via toast
-  }
 }
 
 function showAddTemplateModal() {
@@ -1708,6 +1868,7 @@ async function handleUseTemplateFormSubmit(e) {
   let entryType = 'script';
   if (template.language === 'ssh') entryType = 'ssh';
   else if (template.language === 'wsl') entryType = 'wsl';
+  else if (template.language === 'ahk') entryType = 'ahk';
   else if (template.language === 'cmd' || template.language === 'powershell') entryType = 'cmd';
 
   const input = {
@@ -1733,7 +1894,6 @@ function closeAllModals() {
   document.getElementById('template-modal').classList.add('hidden');
   document.getElementById('use-template-modal').classList.add('hidden');
   document.getElementById('confirm-modal').classList.add('hidden');
-  document.getElementById('hotkey-modal').classList.add('hidden');
 }
 
 // ==================== Global Functions (for inline onclick) ====================
@@ -1759,19 +1919,6 @@ window.confirmDeleteEntry = function(id) {
       }
     );
   }
-};
-
-window.confirmDeleteHotkey = function(id) {
-  showConfirmModal(
-    t('confirm.delete_hotkey_title'),
-    t('confirm.delete_hotkey_message'),
-    t('confirm.irreversible'),
-    async () => {
-      await deleteHotkey(id);
-      await loadHotkeys();
-      renderHotkeysList(state.hotkeys);
-    }
-  );
 };
 
 window.editTemplate = async function(id) {
@@ -1885,14 +2032,24 @@ function showEntryContextMenu(e, entryId) {
 
 // ==================== Hotkey Recording ====================
 
-function setupHotkeyRecording() {
-  const input = document.getElementById('hotkey-accelerator');
-
-  input.addEventListener('focus', () => {
-    input.value = t('hotkeys.placeholders.shortcut');
-  });
+function setupHotkeyRecording(inputId, onUpdate) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
 
   input.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab') {
+      return;
+    }
+
+    e.stopPropagation();
+
+    if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
+      e.preventDefault();
+      input.value = '';
+      if (onUpdate) onUpdate();
+      return;
+    }
+
     e.preventDefault();
 
     const parts = [];
@@ -1909,6 +2066,7 @@ function setupHotkeyRecording() {
 
     parts.push(key);
     input.value = parts.join('+');
+    if (onUpdate) onUpdate();
   });
 }
 
@@ -1936,6 +2094,8 @@ async function handleSettingsChange() {
     show_type_label: document.getElementById('setting-show-type').checked,
     show_description: document.getElementById('setting-show-desc').checked,
     confirm_dangerous_commands: document.getElementById('setting-confirm-dangerous').checked,
+    auto_launch: document.getElementById('setting-auto-launch').checked,
+    app_hotkey: document.getElementById('setting-app-hotkey').value,
     theme: state.settings?.theme || 'system',
     language: document.getElementById('setting-language').value || DEFAULT_LANGUAGE,
     search_debounce_ms: state.settings?.search_debounce_ms || 150,
@@ -2076,15 +2236,38 @@ async function init() {
     });
   });
 
+  const entriesSearchInput = document.getElementById('entries-search-input');
+  if (entriesSearchInput) {
+    entriesSearchInput.value = state.entriesSearchQuery;
+    entriesSearchInput.addEventListener('input', handleEntriesSearchInput);
+  }
+
   // Entry modal
   document.getElementById('btn-add-entry').addEventListener('click', showAddEntryModal);
   document.getElementById('btn-close-entry-modal').addEventListener('click', closeEntryModal);
   document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
   document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
   document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
+  document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);
+  document.getElementById('entry-script-content').addEventListener('input', syncEntryFormRequirements);
+  document.getElementById('entry-hotkey-position').addEventListener('change', (e) => {
+    e.target.dataset.touched = 'true';
+  });
+  document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
+    e.target.dataset.touched = 'true';
+  });
   document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
   document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
   document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
+  document.getElementById('btn-clear-entry-hotkey').addEventListener('click', () => {
+    document.getElementById('entry-hotkey').value = '';
+  });
+  setupHotkeyRecording('entry-hotkey');
+  setupHotkeyRecording('setting-app-hotkey', handleSettingsChange);
+  document.getElementById('btn-clear-app-hotkey').addEventListener('click', () => {
+    document.getElementById('setting-app-hotkey').value = '';
+    handleSettingsChange();
+  });
 
   // Template modal
   document.getElementById('btn-add-template').addEventListener('click', showAddTemplateModal);
@@ -2101,12 +2284,6 @@ async function init() {
   // Confirm modal
   document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirmModal);
 
-  // Hotkey modal
-  document.getElementById('btn-close-hotkey-modal').addEventListener('click', closeHotkeyModal);
-  document.getElementById('btn-cancel-hotkey').addEventListener('click', closeHotkeyModal);
-  document.getElementById('hotkey-form').addEventListener('submit', handleHotkeyFormSubmit);
-  setupHotkeyRecording();
-
   // Import/Export
   document.getElementById('btn-export').addEventListener('click', exportData);
   document.getElementById('btn-import').addEventListener('click', () => {
@@ -2122,6 +2299,7 @@ async function init() {
   document.getElementById('setting-show-type').addEventListener('change', handleSettingsChange);
   document.getElementById('setting-show-desc').addEventListener('change', handleSettingsChange);
   document.getElementById('setting-confirm-dangerous').addEventListener('change', handleSettingsChange);
+  document.getElementById('setting-auto-launch').addEventListener('change', handleSettingsChange);
   document.getElementById('setting-language').addEventListener('change', handleSettingsChange);
 
   // Close modals on Escape

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, State, Window};
+use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
 
 pub struct AppState {
@@ -74,6 +75,15 @@ impl From<serde_yaml::Error> for CommandError {
         CommandError {
             message: err.to_string(),
             code: "YAML_ERROR".to_string(),
+        }
+    }
+}
+
+impl From<tauri_plugin_autostart::Error> for CommandError {
+    fn from(err: tauri_plugin_autostart::Error) -> Self {
+        CommandError {
+            message: err.to_string(),
+            code: "AUTOSTART_ERROR".to_string(),
         }
     }
 }
@@ -338,7 +348,43 @@ pub fn get_settings(state: State<AppState>) -> CommandResult<Settings> {
 }
 
 #[tauri::command]
-pub fn update_settings(state: State<AppState>, settings: Settings) -> CommandResult<Settings> {
+pub fn update_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> CommandResult<Settings> {
+    let mut settings = settings;
+    settings.app_hotkey = settings.app_hotkey.trim().to_string();
+
+    let previous = {
+        let db = state.db.lock().map_err(|_| lock_error())?;
+        db.get_settings()?
+    };
+
+    if previous.auto_launch != settings.auto_launch {
+        if settings.auto_launch {
+            app.autolaunch().enable()?;
+        } else {
+            app.autolaunch().disable()?;
+        }
+    }
+
+    let previous_app_hotkey = previous.app_hotkey.trim().to_string();
+    let next_app_hotkey = settings.app_hotkey.trim().to_string();
+    if previous_app_hotkey != next_app_hotkey {
+        if !previous_app_hotkey.is_empty() {
+            let _ = hotkeys::unregister_app_hotkey(&app, &previous_app_hotkey);
+        }
+
+        if !next_app_hotkey.is_empty() {
+            if let Err(error) = hotkeys::register_app_hotkey(&app, &next_app_hotkey) {
+                if !previous_app_hotkey.is_empty() {
+                    let _ = hotkeys::register_app_hotkey(&app, &previous_app_hotkey);
+                }
+                return Err(CommandError {
+                    message: error,
+                    code: "HOTKEY_REGISTER_FAILED".to_string(),
+                });
+            }
+        }
+    }
+
     let db = state.db.lock().map_err(|_| lock_error())?;
     db.save_settings(&settings)?;
     Ok(db.get_settings()?)
@@ -474,7 +520,7 @@ pub fn import_data(state: State<AppState>, input: ImportDataInput) -> CommandRes
 
 #[tauri::command]
 pub fn minimize_window(window: Window) -> CommandResult<()> {
-    window.minimize().map_err(|e| CommandError {
+    window.hide().map_err(|e| CommandError {
         message: e.to_string(),
         code: "WINDOW_ERROR".to_string(),
     })?;
@@ -483,7 +529,7 @@ pub fn minimize_window(window: Window) -> CommandResult<()> {
 
 #[tauri::command]
 pub fn close_window(window: Window) -> CommandResult<()> {
-    window.close().map_err(|e| CommandError {
+    window.hide().map_err(|e| CommandError {
         message: e.to_string(),
         code: "WINDOW_ERROR".to_string(),
     })?;

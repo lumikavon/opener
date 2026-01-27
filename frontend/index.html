@@ -113,12 +113,6 @@
                 </svg>
                 <span data-i18n="settings.sidebar.entries">Entries</span>
               </div>
-              <div class="sidebar-item" data-tab="hotkeys">
-                <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4"/>
-                </svg>
-                <span data-i18n="settings.sidebar.hotkeys">Hotkeys</span>
-              </div>
               <div class="sidebar-item" data-tab="display">
                 <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
@@ -150,31 +144,35 @@
           <div class="flex-1 overflow-y-auto p-6">
             <!-- Entries Tab -->
             <div id="tab-entries" class="tab-content">
-              <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium" data-i18n="settings.entries.title">Manage Entries</h3>
-                <button id="btn-add-entry" class="btn-primary flex items-center gap-2">
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-                  </svg>
-                  <span data-i18n="settings.entries.add">Add Entry</span>
-                </button>
+              <div class="flex flex-col gap-3 mb-4">
+                <div class="flex items-center justify-between">
+                  <h3 class="text-lg font-medium" data-i18n="settings.entries.title">Manage Entries</h3>
+                  <button id="btn-add-entry" class="btn-primary flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                    </svg>
+                    <span data-i18n="settings.entries.add">Add Entry</span>
+                  </button>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="relative flex-1">
+                    <svg class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                    <input
+                      type="text"
+                      id="entries-search-input"
+                      class="input py-2 pl-3 pr-9"
+                      placeholder="Search entries..."
+                      data-i18n-placeholder="settings.entries.search_placeholder"
+                      autocomplete="off"
+                    >
+                  </div>
+                </div>
               </div>
               <div id="entries-list" class="space-y-2">
                 <!-- Entries will be rendered here -->
               </div>
-            </div>
-
-            <!-- Hotkeys Tab -->
-            <div id="tab-hotkeys" class="tab-content hidden">
-              <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-medium" data-i18n="settings.hotkeys.title">Hotkey Bindings</h3>
-              </div>
-              <div id="hotkeys-list" class="space-y-2">
-                <!-- Hotkeys will be rendered here -->
-              </div>
-              <p class="text-sm text-gray-500 mt-4" data-i18n="settings.hotkeys.help">
-                Bind keyboard shortcuts to entries for quick access. Supports both application-level and global hotkeys.
-              </p>
             </div>
 
             <!-- Display Tab -->
@@ -215,6 +213,16 @@
                     <option value="100">100</option>
                   </select>
                 </div>
+                <div>
+                  <label class="label" data-i18n="settings.display.app_hotkey">Hotkey (toggle show/hide)</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="setting-app-hotkey" class="input flex-1" placeholder="Press keys..." data-i18n-placeholder="settings.display.app_hotkey_placeholder" readonly>
+                    <button type="button" id="btn-clear-app-hotkey" class="btn-secondary" data-i18n="actions.clear">Clear</button>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1" data-i18n="settings.display.app_hotkey_hint">
+                    Click and press a hotkey to toggle Opener visibility.
+                  </p>
+                </div>
                 <div class="space-y-3">
                   <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" id="setting-show-path" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
@@ -231,6 +239,10 @@
                   <label class="flex items-center gap-3 cursor-pointer">
                     <input type="checkbox" id="setting-confirm-dangerous" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
                     <span data-i18n="settings.display.confirm_dangerous">Confirm before running dangerous commands (Cmd/WSL/SSH/Script/AHK)</span>
+                  </label>
+                  <label class="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" id="setting-auto-launch" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.display.auto_launch">Launch on system startup</span>
                   </label>
                 </div>
               </div>
@@ -331,6 +343,7 @@
                 <option value="script" data-i18n="entry.type_options.script">Script</option>
                 <option value="shortcut" data-i18n="entry.type_options.shortcut">Shortcut (.lnk)</option>
                 <option value="ahk" data-i18n="entry.type_options.ahk">AutoHotkey</option>
+                <option value="hotkey_app" data-i18n="entry.type_options.hotkey_app">HotKey应用</option>
               </select>
             </div>
             <div id="field-target">
@@ -351,6 +364,26 @@
                 <button type="button" id="btn-browse-workdir" class="btn-secondary" data-i18n="actions.browse">Browse</button>
               </div>
             </div>
+            <div id="field-hotkey-app" class="hidden space-y-4">
+              <div>
+                <label class="label" data-i18n="entry.fields.hotkey_filter">Window Filter *</label>
+                <input type="text" id="entry-hotkey-filter" class="input" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
+              </div>
+              <div class="grid grid-cols-2 gap-4 items-end">
+                <div>
+                  <label class="label" data-i18n="entry.fields.hotkey_position">Window Position *</label>
+                  <select id="entry-hotkey-position" class="input">
+                    <option value="left" data-i18n="entry.position_options.left">Left</option>
+                    <option value="right" data-i18n="entry.position_options.right">Right</option>
+                    <option value="max" data-i18n="entry.position_options.max">Maximize</option>
+                  </select>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer pb-2">
+                  <input type="checkbox" id="entry-hotkey-detect-hidden" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                  <span class="text-sm" data-i18n="entry.fields.hotkey_detect_hidden">Detect hidden windows</span>
+                </label>
+              </div>
+            </div>
             <div id="field-description">
               <label class="label" data-i18n="entry.fields.description">Description</label>
               <input type="text" id="entry-description" class="input" placeholder="Optional description" data-i18n-placeholder="entry.placeholders.description">
@@ -358,6 +391,16 @@
             <div id="field-tags">
               <label class="label" data-i18n="entry.fields.tags">Tags</label>
               <input type="text" id="entry-tags" class="input" placeholder="Comma-separated tags" data-i18n-placeholder="entry.placeholders.tags">
+            </div>
+            <div id="field-hotkey">
+              <label class="label" data-i18n="entry.fields.global_hotkey">Global Hotkey (optional)</label>
+              <div class="flex gap-2">
+                <input type="text" id="entry-hotkey" class="input flex-1" placeholder="Press keys..." data-i18n-placeholder="entry.placeholders.global_hotkey" readonly>
+                <button type="button" id="btn-clear-entry-hotkey" class="btn-secondary" data-i18n="actions.clear">Clear</button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1" data-i18n="entry.helpers.global_hotkey">
+                Click and press your desired key combination. Leave empty to skip.
+              </p>
             </div>
             <div id="field-icon">
               <label class="label" data-i18n="entry.fields.icon_path">Icon Path</label>
@@ -445,6 +488,7 @@
                 <option value="powershell" data-i18n="template.languages.powershell">PowerShell</option>
                 <option value="cmd" data-i18n="template.languages.cmd">CMD (Windows)</option>
                 <option value="python" data-i18n="template.languages.python">Python</option>
+                <option value="ahk" data-i18n="template.languages.ahk">AutoHotkey</option>
                 <option value="ssh" data-i18n="template.languages.ssh">SSH Command</option>
                 <option value="wsl" data-i18n="template.languages.wsl">WSL Command</option>
               </select>
@@ -527,44 +571,6 @@
         <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
           <button id="btn-confirm-cancel" class="btn-secondary" data-i18n="confirm.cancel">Cancel</button>
           <button id="btn-confirm-ok" class="btn-danger" data-i18n="confirm.execute">Execute</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Hotkey Edit Modal -->
-    <div id="hotkey-modal" class="modal-overlay hidden">
-      <div class="modal animate-fade-in" style="width: 450px;">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 class="text-lg font-semibold" data-i18n="hotkeys.modal_add">Add Hotkey</h2>
-          <button id="btn-close-hotkey-modal" class="btn-ghost p-1.5 rounded-lg">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
-        </div>
-        <div class="p-6">
-          <form id="hotkey-form" class="space-y-4">
-            <input type="hidden" id="hotkey-id">
-            <div>
-              <label class="label" data-i18n="hotkeys.fields.entry">Entry *</label>
-              <select id="hotkey-entry" class="input" required>
-                <!-- Entries will be populated here -->
-              </select>
-            </div>
-            <div>
-              <label class="label" data-i18n="hotkeys.fields.shortcut">Shortcut *</label>
-              <input type="text" id="hotkey-accelerator" class="input" placeholder="Press keys..." data-i18n-placeholder="hotkeys.placeholders.shortcut" readonly required>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="hotkeys.helper">Click and press your desired key combination</p>
-            </div>
-            <div>
-              <label class="label" data-i18n="hotkeys.fields.scope">Scope</label>
-              <div class="input bg-gray-900 text-gray-300 cursor-default" data-i18n="hotkeys.scope_options.global">Global (system-wide)</div>
-            </div>
-          </form>
-        </div>
-        <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
-          <button type="button" id="btn-cancel-hotkey" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
-          <button type="submit" form="hotkey-form" class="btn-primary" data-i18n="actions.save">Save</button>
         </div>
       </div>
     </div>

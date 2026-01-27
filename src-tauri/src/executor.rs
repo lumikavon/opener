@@ -1,9 +1,39 @@
 // Entry executor module - handles execution of different entry types
 
 use crate::models::{Entry, EntryType};
+#[cfg(windows)]
+use std::path::PathBuf;
 use std::process::Command;
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+#[cfg(windows)]
+use std::ffi::OsString;
+#[cfg(windows)]
+use std::os::windows::ffi::OsStringExt;
+#[cfg(windows)]
+use std::path::Path;
+#[cfg(windows)]
+use std::ptr;
+#[cfg(windows)]
+use std::time::{Duration, Instant};
+#[cfg(windows)]
+use winapi::shared::minwindef::{BOOL, DWORD, LPARAM};
+#[cfg(windows)]
+use winapi::shared::windef::{HWND, RECT};
+#[cfg(windows)]
+use winapi::um::handleapi::CloseHandle;
+#[cfg(windows)]
+use winapi::um::processthreadsapi::OpenProcess;
+#[cfg(windows)]
+use winapi::um::psapi::GetModuleFileNameExW;
+#[cfg(windows)]
+use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
+#[cfg(windows)]
+use winapi::um::winuser::{
+    BringWindowToTop, EnumWindows, GetWindowTextLengthW, GetWindowTextW,
+    GetWindowThreadProcessId, IsWindowVisible, MoveWindow, SetForegroundWindow,
+    ShowWindow, SystemParametersInfoW, SPI_GETWORKAREA, SW_MAXIMIZE, SW_RESTORE,
+};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -36,6 +66,7 @@ pub fn execute_entry(entry: &Entry, ahk_path: Option<&str>) -> ExecutorResult<()
         EntryType::Script => execute_script(entry),
         EntryType::Shortcut => execute_shortcut(entry),
         EntryType::Ahk => execute_ahk(entry, ahk_path),
+        EntryType::HotkeyApp => execute_hotkey_app(entry),
     }
 }
 
@@ -277,8 +308,18 @@ fn execute_script(entry: &Entry) -> ExecutorResult<()> {
 
         let mut cmd = if show_terminal {
             let mut c = Command::new("cmd");
-            let ps_cmd = format!("powershell -ExecutionPolicy Bypass -File \"{}\"", script_path.display());
-            c.args(["/c", "start", "cmd", "/k", &ps_cmd]);
+            c.args([
+                "/c",
+                "start",
+                "",
+                "cmd",
+                "/k",
+                "powershell",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                &script_path.to_string_lossy(),
+            ]);
             c
         } else {
             let mut c = Command::new("powershell");
@@ -322,6 +363,276 @@ fn execute_script(entry: &Entry) -> ExecutorResult<()> {
                 cmd.current_dir(workdir);
             }
             cmd.spawn()?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute hotkey application logic
+#[cfg(windows)]
+fn execute_hotkey_app(entry: &Entry) -> ExecutorResult<()> {
+    let filter = build_window_filter(entry);
+    let detect_hidden = entry.hotkey_detect_hidden.unwrap_or(true);
+    let position = entry
+        .hotkey_position
+        .as_deref()
+        .unwrap_or("max")
+        .to_lowercase();
+
+    if let Some(hwnd) = find_window(&filter, detect_hidden) {
+        restore_and_focus(hwnd);
+        apply_position(hwnd, &position)?;
+        return Ok(());
+    }
+
+    let target_path = Path::new(&entry.target);
+    let executable = if target_path.exists() {
+        entry.target.clone()
+    } else if let Ok(resolved) = which::which(&entry.target) {
+        resolved.to_string_lossy().to_string()
+    } else {
+        return Err(ExecutorError::TargetNotFound(entry.target.clone()));
+    };
+
+    let mut cmd = Command::new(&executable);
+    if let Some(ref args) = entry.args {
+        let args_vec: Vec<&str> = args.split_whitespace().collect();
+        cmd.args(&args_vec);
+    }
+    if let Some(ref workdir) = entry.workdir {
+        cmd.current_dir(workdir);
+    }
+    if let Some(ref env_vars) = entry.env_vars {
+        for line in env_vars.lines() {
+            if let Some((key, value)) = line.split_once('=') {
+                cmd.env(key.trim(), value.trim());
+            }
+        }
+    }
+
+    cmd.spawn()?;
+
+    if let Some(hwnd) = wait_for_window(&filter, detect_hidden, Duration::from_secs(15)) {
+        restore_and_focus(hwnd);
+        apply_position(hwnd, &position)?;
+        Ok(())
+    } else {
+        Err(ExecutorError::ExecutionFailed(format!(
+            "HotKey应用打开失败: {}",
+            entry.target
+        )))
+    }
+}
+
+#[cfg(not(windows))]
+fn execute_hotkey_app(_entry: &Entry) -> ExecutorResult<()> {
+    Err(ExecutorError::UnsupportedPlatform(
+        "HotKey应用 is only available on Windows".to_string(),
+    ))
+}
+
+#[cfg(windows)]
+enum WindowFilter {
+    Title(String),
+    Exe(String),
+}
+
+#[cfg(windows)]
+fn build_window_filter(entry: &Entry) -> WindowFilter {
+    let raw = entry.hotkey_filter.as_deref().unwrap_or("").trim();
+    if !raw.is_empty() {
+        let lower = raw.to_lowercase();
+        if lower.starts_with("ahk_exe ") {
+            let exe_name = raw
+                .get("ahk_exe ".len()..)
+                .unwrap_or("")
+                .trim();
+            if !exe_name.is_empty() {
+                return WindowFilter::Exe(exe_name.to_string());
+            }
+        }
+        return WindowFilter::Title(raw.to_string());
+    }
+
+    let resolved = which::which(&entry.target).ok();
+    let exe_name = resolved
+        .as_ref()
+        .and_then(|path| path.file_name())
+        .or_else(|| Path::new(&entry.target).file_name())
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| entry.target.clone());
+    WindowFilter::Exe(exe_name)
+}
+
+#[cfg(windows)]
+fn find_window(filter: &WindowFilter, detect_hidden: bool) -> Option<HWND> {
+    let mut data = WindowSearch {
+        filter,
+        detect_hidden,
+        hwnd: None,
+    };
+
+    unsafe {
+        EnumWindows(Some(enum_windows_proc), &mut data as *mut _ as LPARAM);
+    }
+
+    data.hwnd
+}
+
+#[cfg(windows)]
+fn wait_for_window(filter: &WindowFilter, detect_hidden: bool, timeout: Duration) -> Option<HWND> {
+    let start = Instant::now();
+    loop {
+        if let Some(hwnd) = find_window(filter, detect_hidden) {
+            return Some(hwnd);
+        }
+        if start.elapsed() >= timeout {
+            return None;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+#[cfg(windows)]
+struct WindowSearch<'a> {
+    filter: &'a WindowFilter,
+    detect_hidden: bool,
+    hwnd: Option<HWND>,
+}
+
+#[cfg(windows)]
+unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let data = &mut *(lparam as *mut WindowSearch);
+
+    if !data.detect_hidden && IsWindowVisible(hwnd) == 0 {
+        return 1;
+    }
+
+    let matched = match data.filter {
+        WindowFilter::Title(title) => match_window_title(hwnd, title),
+        WindowFilter::Exe(exe) => match_window_exe(hwnd, exe),
+    };
+
+    if matched {
+        data.hwnd = Some(hwnd);
+        0
+    } else {
+        1
+    }
+}
+
+#[cfg(windows)]
+fn match_window_title(hwnd: HWND, title: &str) -> bool {
+    let target = title.trim();
+    if target.is_empty() {
+        return false;
+    }
+    let window_title = get_window_title(hwnd);
+    window_title
+        .map(|text| text.to_lowercase().contains(&target.to_lowercase()))
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn match_window_exe(hwnd: HWND, exe: &str) -> bool {
+    let target = exe.trim();
+    if target.is_empty() {
+        return false;
+    }
+    let normalized_target = Path::new(target)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_else(|| target.to_string());
+    let normalized_lower = normalized_target.to_lowercase();
+    let exe_lower = if normalized_lower.ends_with(".exe") {
+        None
+    } else {
+        Some(format!("{}.exe", normalized_lower))
+    };
+    let process_exe = get_window_process_exe(hwnd);
+    process_exe
+        .map(|text| {
+            let process_lower = text.to_lowercase();
+            process_lower == normalized_lower
+                || exe_lower.as_ref().map(|exe| process_lower == *exe).unwrap_or(false)
+        })
+        .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn get_window_title(hwnd: HWND) -> Option<String> {
+    unsafe {
+        let length = GetWindowTextLengthW(hwnd);
+        if length == 0 {
+            return None;
+        }
+        let mut buffer = vec![0u16; (length + 1) as usize];
+        let read = GetWindowTextW(hwnd, buffer.as_mut_ptr(), buffer.len() as i32);
+        if read == 0 {
+            return None;
+        }
+        Some(OsString::from_wide(&buffer[..read as usize]).to_string_lossy().to_string())
+    }
+}
+
+#[cfg(windows)]
+fn get_window_process_exe(hwnd: HWND) -> Option<String> {
+    unsafe {
+        let mut pid: DWORD = 0;
+        GetWindowThreadProcessId(hwnd, &mut pid);
+        if pid == 0 {
+            return None;
+        }
+
+        let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid);
+        if handle.is_null() {
+            return None;
+        }
+
+        let mut buffer = vec![0u16; 260];
+        let len = GetModuleFileNameExW(handle, ptr::null_mut(), buffer.as_mut_ptr(), buffer.len() as DWORD);
+        CloseHandle(handle);
+        if len == 0 {
+            return None;
+        }
+
+        let path = OsString::from_wide(&buffer[..len as usize]).to_string_lossy().to_string();
+        Path::new(&path)
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+    }
+}
+
+#[cfg(windows)]
+fn restore_and_focus(hwnd: HWND) {
+    unsafe {
+        ShowWindow(hwnd, SW_RESTORE);
+        SetForegroundWindow(hwnd);
+        BringWindowToTop(hwnd);
+    }
+}
+
+#[cfg(windows)]
+fn apply_position(hwnd: HWND, position: &str) -> ExecutorResult<()> {
+    unsafe {
+        let mut rect: RECT = std::mem::zeroed();
+        SystemParametersInfoW(SPI_GETWORKAREA, 0, &mut rect as *mut _ as *mut _, 0);
+        let left = rect.left;
+        let top = rect.top;
+        let width = rect.right - rect.left;
+        let height = rect.bottom - rect.top;
+
+        match position {
+            "left" => {
+                MoveWindow(hwnd, left, top, width / 2, height, 1);
+            }
+            "right" => {
+                MoveWindow(hwnd, left + width / 2, top, width / 2, height, 1);
+            }
+            _ => {
+                ShowWindow(hwnd, SW_MAXIMIZE);
+            }
         }
     }
 
@@ -378,22 +689,40 @@ fn execute_shortcut(entry: &Entry) -> ExecutorResult<()> {
 
 /// Execute AutoHotkey script
 #[cfg(windows)]
-fn execute_ahk(entry: &Entry, ahk_path: Option<&str>) -> ExecutorResult<()> {
-    let ahk_exe = ahk_path.unwrap_or("AutoHotkey.exe");
-
-    // Check if AHK exists in PATH or at specified location
-    let ahk_found = std::path::Path::new(ahk_exe).exists() ||
-        which::which(ahk_exe).is_ok();
-
-    if !ahk_found {
-        return Err(ExecutorError::AhkNotFound);
+fn resolve_ahk_exe(ahk_path: Option<&str>) -> Option<PathBuf> {
+    if let Some(path) = ahk_path {
+        let candidate = std::path::Path::new(path);
+        if candidate.exists() {
+            return Some(candidate.to_path_buf());
+        }
+        if let Ok(found) = which::which(path) {
+            return Some(found);
+        }
+    } else if let Ok(found) = which::which("AutoHotkey.exe") {
+        return Some(found);
     }
+
+    let default_dir = std::path::Path::new(r"C:\Program Files\AutoHotkey\v2");
+    for exe_name in ["AutoHotkey.exe", "AutoHotkey64.exe", "AutoHotkey32.exe"] {
+        let candidate = default_dir.join(exe_name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
+/// Execute AutoHotkey script
+#[cfg(windows)]
+fn execute_ahk(entry: &Entry, ahk_path: Option<&str>) -> ExecutorResult<()> {
+    let ahk_exe = resolve_ahk_exe(ahk_path).ok_or(ExecutorError::AhkNotFound)?;
 
     let path = std::path::Path::new(&entry.target);
 
     let mut cmd = if path.exists() && path.extension().map(|e| e == "ahk").unwrap_or(false) {
         // Execute existing .ahk file
-        let mut c = Command::new(ahk_exe);
+        let mut c = Command::new(&ahk_exe);
         c.arg(&entry.target);
         c
     } else {
@@ -402,7 +731,7 @@ fn execute_ahk(entry: &Entry, ahk_path: Option<&str>) -> ExecutorResult<()> {
         let script_path = temp_dir.join(format!("opener_ahk_{}.ahk", uuid::Uuid::new_v4()));
         std::fs::write(&script_path, &entry.target)?;
 
-        let mut c = Command::new(ahk_exe);
+        let mut c = Command::new(&ahk_exe);
         c.arg(&script_path);
         c
     };
@@ -461,6 +790,10 @@ pub fn get_execution_preview(entry: &Entry) -> String {
         EntryType::Ahk => {
             let preview = entry.target.lines().next().unwrap_or("(empty script)");
             format!("Run AHK: {}...", preview)
+        }
+        EntryType::HotkeyApp => {
+            let name = if entry.name.is_empty() { "HotKey应用" } else { entry.name.as_str() };
+            format!("HotKey应用: {}", name)
         }
     }
 }

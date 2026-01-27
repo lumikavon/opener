@@ -118,6 +118,7 @@
   .type-badge.script { @apply bg-indigo-500/20 text-indigo-400; }
   .type-badge.shortcut { @apply bg-teal-500/20 text-teal-400; }
   .type-badge.ahk { @apply bg-rose-500/20 text-rose-400; }
+  .type-badge.hotkey_app { @apply bg-emerald-500/20 text-emerald-400; }
 
   .modal-overlay {
     @apply fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50;

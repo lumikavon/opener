@@ -2,8 +2,10 @@
 
 use crate::models::{Hotkey, HotkeyScope};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+const MAIN_WINDOW_LABEL: &str = "main";
 
 #[derive(Clone, Serialize)]
 pub struct HotkeyTriggeredPayload {
@@ -59,4 +61,45 @@ pub fn register_all_hotkeys<R: Runtime>(app: &AppHandle<R>, hotkeys: &[Hotkey]) 
             );
         }
     }
+}
+
+fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        let is_visible = window.is_visible().unwrap_or(true);
+        if is_visible {
+            let _ = window.hide();
+        } else {
+            let _ = window.show();
+            let _ = window.set_focus();
+        }
+    }
+}
+
+pub fn register_app_hotkey<R: Runtime>(app: &AppHandle<R>, accelerator: &str) -> Result<(), String> {
+    let trimmed = accelerator.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let accelerator_for_register = trimmed.to_string();
+    app.global_shortcut()
+        .on_shortcut(accelerator_for_register.as_str(), move |app_handle, _shortcut, event| {
+            if event.state != ShortcutState::Pressed {
+                return;
+            }
+
+            toggle_main_window(app_handle);
+        })
+        .map_err(|error| error.to_string())
+}
+
+pub fn unregister_app_hotkey<R: Runtime>(app: &AppHandle<R>, accelerator: &str) -> Result<(), String> {
+    let trimmed = accelerator.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    app.global_shortcut()
+        .unregister(trimmed)
+        .map_err(|error| error.to_string())
 }

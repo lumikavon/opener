@@ -17,6 +17,8 @@ pub enum EntryType {
     Script,
     Shortcut,
     Ahk,
+    #[serde(rename = "hotkey_app")]
+    HotkeyApp,
 }
 
 impl EntryType {
@@ -32,6 +34,7 @@ impl EntryType {
             "script" => Some(EntryType::Script),
             "shortcut" => Some(EntryType::Shortcut),
             "ahk" => Some(EntryType::Ahk),
+            "hotkey_app" | "hotkeyapp" => Some(EntryType::HotkeyApp),
             _ => None,
         }
     }
@@ -48,6 +51,7 @@ impl EntryType {
             EntryType::Script => "script",
             EntryType::Shortcut => "shortcut",
             EntryType::Ahk => "ahk",
+            EntryType::HotkeyApp => "hotkey_app",
         }
     }
 
@@ -56,7 +60,12 @@ impl EntryType {
     pub fn requires_confirmation(&self) -> bool {
         matches!(
             self,
-            EntryType::Cmd | EntryType::Wsl | EntryType::Ssh | EntryType::Script | EntryType::Ahk
+            EntryType::Cmd
+                | EntryType::Wsl
+                | EntryType::Ssh
+                | EntryType::Script
+                | EntryType::Ahk
+                | EntryType::HotkeyApp
         )
     }
 }
@@ -96,6 +105,12 @@ pub struct Entry {
     pub ssh_key_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env_vars: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hotkey_filter: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hotkey_position: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hotkey_detect_hidden: Option<bool>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -126,6 +141,9 @@ impl Entry {
             ssh_port: None,
             ssh_key_id: None,
             env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
             created_at: now,
             updated_at: now,
             last_used_at: None,
@@ -155,6 +173,9 @@ pub struct CreateEntryInput {
     pub ssh_port: Option<i32>,
     pub ssh_key_id: Option<String>,
     pub env_vars: Option<String>,
+    pub hotkey_filter: Option<String>,
+    pub hotkey_position: Option<String>,
+    pub hotkey_detect_hidden: Option<bool>,
 }
 
 /// Input structure for updating an entry
@@ -178,6 +199,9 @@ pub struct UpdateEntryInput {
     pub ssh_port: Option<i32>,
     pub ssh_key_id: Option<String>,
     pub env_vars: Option<String>,
+    pub hotkey_filter: Option<String>,
+    pub hotkey_position: Option<String>,
+    pub hotkey_detect_hidden: Option<bool>,
 }
 
 /// Hotkey scope enum
@@ -273,6 +297,10 @@ pub struct Settings {
     pub sort_strategy: SortStrategy,
     pub max_results: i32,
     pub confirm_dangerous_commands: bool,
+    #[serde(default)]
+    pub auto_launch: bool,
+    #[serde(default)]
+    pub app_hotkey: String,
     pub theme: String,
     pub language: String,
     pub search_debounce_ms: i32,
@@ -288,6 +316,8 @@ impl Default for Settings {
             sort_strategy: SortStrategy::Relevance,
             max_results: 50,
             confirm_dangerous_commands: true,
+            auto_launch: true,
+            app_hotkey: "Alt+R".to_string(),
             theme: "system".to_string(),
             language: "zh-CN".to_string(),
             search_debounce_ms: 150,

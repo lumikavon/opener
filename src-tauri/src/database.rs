@@ -58,6 +58,9 @@ impl Database {
                 ssh_port INTEGER,
                 ssh_key_id TEXT,
                 env_vars TEXT,
+                hotkey_filter TEXT,
+                hotkey_position TEXT,
+                hotkey_detect_hidden INTEGER,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 last_used_at TEXT,
@@ -103,6 +106,29 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_hotkeys_accelerator ON hotkeys(accelerator);
             "#,
         )?;
+        self.ensure_entry_columns()?;
+        Ok(())
+    }
+
+    fn ensure_entry_columns(&self) -> DbResult<()> {
+        let mut stmt = self.conn.prepare("PRAGMA table_info(entries)")?;
+        let existing: std::collections::HashSet<String> = stmt
+            .query_map([], |row| row.get::<_, String>(1))?
+            .collect::<Result<_, _>>()?;
+
+        let columns = [
+            ("hotkey_filter", "TEXT"),
+            ("hotkey_position", "TEXT"),
+            ("hotkey_detect_hidden", "INTEGER"),
+        ];
+
+        for (name, column_type) in columns {
+            if !existing.contains(name) {
+                let sql = format!("ALTER TABLE entries ADD COLUMN {} {}", name, column_type);
+                self.conn.execute(&sql, [])?;
+            }
+        }
+
         Ok(())
     }
 
@@ -130,6 +156,8 @@ impl Database {
         if template_count == 0 {
             self.seed_default_templates()?;
         }
+
+        self.ensure_hotkey_template()?;
 
         Ok(())
     }
@@ -300,6 +328,7 @@ impl Database {
                 created_at: Utc::now(),
                 updated_at: Utc::now(),
             },
+            Self::hotkey_app_template(),
         ];
 
         for template in templates {
@@ -309,13 +338,171 @@ impl Database {
         Ok(())
     }
 
+    fn ensure_hotkey_template(&self) -> DbResult<()> {
+        let count: i32 = self.conn.query_row(
+            "SELECT COUNT(*) FROM script_templates WHERE name = ?1 AND language = ?2",
+            params!["hotkey应用", "ahk"],
+            |row| row.get(0),
+        )?;
+
+        if count == 0 {
+            let template = Self::hotkey_app_template();
+            self.create_template(&template)?;
+        }
+
+        Ok(())
+    }
+
+    fn hotkey_app_template() -> ScriptTemplate {
+        ScriptTemplate {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "hotkey应用".to_string(),
+            description: Some("通过快捷键启动或聚焦应用（AutoHotkey）".to_string()),
+            language: "ahk".to_string(),
+            template_content: r#"#Requires AutoHotkey v2.0
+#SingleInstance Force
+SetTitleMatchMode 2
+
+ShowTrayTip(title, message) {
+    TrayTip(message, title)
+}
+
+ApplyPosition(filter, position, left, top, width, height) {
+    if (position = "left") {
+        try WinMove left, top, width / 2, height, filter
+    } else if (position = "right") {
+        try WinMove left + width / 2, top, width / 2, height, filter
+    } else if (position = "max") {
+        try WinMaximize filter
+    }
+}
+
+DoRunApp(name, executable, workdir, filter, position := "max", detectHidden := true) {
+    prevDetect := A_DetectHiddenWindows
+    DetectHiddenWindows detectHidden
+
+    SplitPath executable, &exeName
+    if (!filter) {
+        filter := "ahk_exe " . exeName
+    }
+
+    MonitorGetWorkArea(&left, &top, &right, &bottom)
+    workWidth := right - left
+    workHeight := bottom - top
+
+    try {
+        if WinExist(filter) {
+            WinRestore filter
+            if WinWait(filter, , 15) {
+                WinActivate filter
+            } else {
+                ShowTrayTip "错误", "打开失败: " . executable
+                return
+            }
+            ApplyPosition filter, position, left, top, workWidth, workHeight
+            ShowTrayTip "聚焦应用", "聚焦应用: " . name
+            return
+        }
+
+        Run(executable, workdir)
+        if WinWait(filter, , 15) {
+            try WinActivate filter
+        } else {
+            ShowTrayTip "错误", "打开失败: " . executable
+            return
+        }
+
+        ApplyPosition filter, position, left, top, workWidth, workHeight
+        ShowTrayTip "打开应用", "打开应用: " . name
+    } finally {
+        DetectHiddenWindows prevDetect
+    }
+}
+
+{{hotkey}}::DoRunApp("{{app_name}}", "{{executable}}", "{{workdir}}", "{{filter}}", "{{position}}", {{detect_hidden}})
+"#.to_string(),
+            variables: vec![
+                VariableDefinition {
+                    name: "hotkey".to_string(),
+                    var_type: VariableType::String,
+                    label: "快捷键".to_string(),
+                    default_value: Some("^!1".to_string()),
+                    required: true,
+                    choices: None,
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "app_name".to_string(),
+                    var_type: VariableType::String,
+                    label: "应用名称".to_string(),
+                    default_value: None,
+                    required: true,
+                    choices: None,
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "executable".to_string(),
+                    var_type: VariableType::Path,
+                    label: "可执行文件".to_string(),
+                    default_value: None,
+                    required: true,
+                    choices: None,
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "workdir".to_string(),
+                    var_type: VariableType::Path,
+                    label: "工作目录".to_string(),
+                    default_value: None,
+                    required: false,
+                    choices: None,
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "filter".to_string(),
+                    var_type: VariableType::String,
+                    label: "窗口匹配 (WinTitle)".to_string(),
+                    default_value: None,
+                    required: false,
+                    choices: None,
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "position".to_string(),
+                    var_type: VariableType::Choice,
+                    label: "窗口位置".to_string(),
+                    default_value: Some("max".to_string()),
+                    required: true,
+                    choices: Some(vec![
+                        "left".to_string(),
+                        "right".to_string(),
+                        "max".to_string(),
+                    ]),
+                    validation_regex: None,
+                },
+                VariableDefinition {
+                    name: "detect_hidden".to_string(),
+                    var_type: VariableType::Boolean,
+                    label: "检测隐藏窗口".to_string(),
+                    default_value: Some("true".to_string()),
+                    required: false,
+                    choices: None,
+                    validation_regex: None,
+                },
+            ],
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        }
+    }
+
     // ==================== Entry CRUD ====================
 
     pub fn get_all_entries(&self) -> DbResult<Vec<Entry>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, type, target, args, workdir, icon_path, tags, description,
                     enabled, confirm_before_run, show_terminal, wsl_distro, ssh_host,
-                    ssh_user, ssh_port, ssh_key_id, env_vars, created_at, updated_at,
+                    ssh_user, ssh_port, ssh_key_id, env_vars, hotkey_filter,
+                    hotkey_position, hotkey_detect_hidden, created_at, updated_at,
                     last_used_at, use_count
              FROM entries ORDER BY name"
         )?;
@@ -328,7 +515,8 @@ impl Database {
         let mut stmt = self.conn.prepare(
             "SELECT id, name, type, target, args, workdir, icon_path, tags, description,
                     enabled, confirm_before_run, show_terminal, wsl_distro, ssh_host,
-                    ssh_user, ssh_port, ssh_key_id, env_vars, created_at, updated_at,
+                    ssh_user, ssh_port, ssh_key_id, env_vars, hotkey_filter,
+                    hotkey_position, hotkey_detect_hidden, created_at, updated_at,
                     last_used_at, use_count
              FROM entries WHERE id = ?"
         )?;
@@ -350,8 +538,9 @@ impl Database {
             "INSERT INTO entries (id, name, type, target, args, workdir, icon_path, tags,
                                   description, enabled, confirm_before_run, show_terminal,
                                   wsl_distro, ssh_host, ssh_user, ssh_port, ssh_key_id,
-                                  env_vars, created_at, updated_at, use_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, 0)",
+                                  env_vars, hotkey_filter, hotkey_position, hotkey_detect_hidden,
+                                  created_at, updated_at, use_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, 0)",
             params![
                 id,
                 input.name,
@@ -371,6 +560,9 @@ impl Database {
                 input.ssh_port,
                 input.ssh_key_id,
                 input.env_vars,
+                input.hotkey_filter,
+                input.hotkey_position,
+                input.hotkey_detect_hidden,
                 now_str,
                 now_str,
             ],
@@ -455,6 +647,18 @@ impl Database {
         if let Some(ref env_vars) = input.env_vars {
             updates.push("env_vars = ?");
             params_vec.push(Box::new(env_vars.clone()));
+        }
+        if let Some(ref hotkey_filter) = input.hotkey_filter {
+            updates.push("hotkey_filter = ?");
+            params_vec.push(Box::new(hotkey_filter.clone()));
+        }
+        if let Some(ref hotkey_position) = input.hotkey_position {
+            updates.push("hotkey_position = ?");
+            params_vec.push(Box::new(hotkey_position.clone()));
+        }
+        if let Some(hotkey_detect_hidden) = input.hotkey_detect_hidden {
+            updates.push("hotkey_detect_hidden = ?");
+            params_vec.push(Box::new(hotkey_detect_hidden));
         }
 
         updates.push("updated_at = ?");
@@ -569,9 +773,9 @@ impl Database {
 
     fn row_to_entry(&self, row: &rusqlite::Row) -> rusqlite::Result<Entry> {
         let type_str: String = row.get(2)?;
-        let created_at_str: String = row.get(18)?;
-        let updated_at_str: String = row.get(19)?;
-        let last_used_at_str: Option<String> = row.get(20)?;
+        let created_at_str: String = row.get(21)?;
+        let updated_at_str: String = row.get(22)?;
+        let last_used_at_str: Option<String> = row.get(23)?;
 
         Ok(Entry {
             id: row.get(0)?,
@@ -592,6 +796,9 @@ impl Database {
             ssh_port: row.get(15)?,
             ssh_key_id: row.get(16)?,
             env_vars: row.get(17)?,
+            hotkey_filter: row.get(18)?,
+            hotkey_position: row.get(19)?,
+            hotkey_detect_hidden: row.get(20)?,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
@@ -603,7 +810,7 @@ impl Database {
                     .map(|dt| dt.with_timezone(&Utc))
                     .ok()
             }),
-            use_count: row.get(21)?,
+            use_count: row.get(24)?,
         })
     }
 
@@ -802,6 +1009,8 @@ impl Database {
                 "sort_strategy" => settings.sort_strategy = SortStrategy::from_str(&value),
                 "max_results" => settings.max_results = value.parse().unwrap_or(50),
                 "confirm_dangerous_commands" => settings.confirm_dangerous_commands = value == "true",
+                "auto_launch" => settings.auto_launch = value == "true",
+                "app_hotkey" => settings.app_hotkey = value,
                 "theme" => settings.theme = value,
                 "language" => settings.language = value,
                 "search_debounce_ms" => settings.search_debounce_ms = value.parse().unwrap_or(150),
@@ -821,6 +1030,8 @@ impl Database {
             ("sort_strategy", settings.sort_strategy.as_str().to_string()),
             ("max_results", settings.max_results.to_string()),
             ("confirm_dangerous_commands", settings.confirm_dangerous_commands.to_string()),
+            ("auto_launch", settings.auto_launch.to_string()),
+            ("app_hotkey", settings.app_hotkey.clone()),
             ("theme", settings.theme.clone()),
             ("language", settings.language.clone()),
             ("search_debounce_ms", settings.search_debounce_ms.to_string()),
@@ -1113,8 +1324,9 @@ impl Database {
             "INSERT INTO entries (id, name, type, target, args, workdir, icon_path, tags,
                                   description, enabled, confirm_before_run, show_terminal,
                                   wsl_distro, ssh_host, ssh_user, ssh_port, ssh_key_id,
-                                  env_vars, created_at, updated_at, last_used_at, use_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
+                                  env_vars, hotkey_filter, hotkey_position, hotkey_detect_hidden,
+                                  created_at, updated_at, last_used_at, use_count)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
             params![
                 entry.id,
                 entry.name,
@@ -1134,6 +1346,9 @@ impl Database {
                 entry.ssh_port,
                 entry.ssh_key_id,
                 entry.env_vars,
+                entry.hotkey_filter,
+                entry.hotkey_position,
+                entry.hotkey_detect_hidden,
                 entry.created_at.to_rfc3339(),
                 entry.updated_at.to_rfc3339(),
                 entry.last_used_at.map(|dt| dt.to_rfc3339()),
@@ -1149,7 +1364,8 @@ impl Database {
                     icon_path = ?7, tags = ?8, description = ?9, enabled = ?10,
                     confirm_before_run = ?11, show_terminal = ?12, wsl_distro = ?13,
                     ssh_host = ?14, ssh_user = ?15, ssh_port = ?16, ssh_key_id = ?17,
-                    env_vars = ?18, updated_at = ?19
+                    env_vars = ?18, hotkey_filter = ?19, hotkey_position = ?20,
+                    hotkey_detect_hidden = ?21, updated_at = ?22
              WHERE id = ?1",
             params![
                 entry.id,
@@ -1170,6 +1386,9 @@ impl Database {
                 entry.ssh_port,
                 entry.ssh_key_id,
                 entry.env_vars,
+                entry.hotkey_filter,
+                entry.hotkey_position,
+                entry.hotkey_detect_hidden,
                 Utc::now().to_rfc3339(),
             ],
         )?;
@@ -1244,6 +1463,7 @@ mod tests {
         let settings = db.get_settings().unwrap();
         assert_eq!(settings.icon_size, 24);
         assert_eq!(settings.language, "zh-CN");
+        assert!(settings.auto_launch);
     }
 
     #[test]
@@ -1271,6 +1491,9 @@ mod tests {
             ssh_port: None,
             ssh_key_id: None,
             env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
         };
 
         let entry = db.create_entry(&input).unwrap();
@@ -1300,6 +1523,9 @@ mod tests {
             ssh_port: None,
             ssh_key_id: None,
             env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
         };
 
         let updated = db.update_entry(&entry.id, &update_input).unwrap();
@@ -1343,6 +1569,9 @@ mod tests {
                 ssh_port: None,
                 ssh_key_id: None,
                 env_vars: None,
+                hotkey_filter: None,
+                hotkey_position: None,
+                hotkey_detect_hidden: None,
             };
             db.create_entry(&input).unwrap();
         }
@@ -1384,6 +1613,9 @@ mod tests {
             ssh_port: None,
             ssh_key_id: None,
             env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
         };
         let entry = db.create_entry(&input).unwrap();
 
@@ -1425,6 +1657,9 @@ mod tests {
             ssh_port: None,
             ssh_key_id: None,
             env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
         };
         db.create_entry(&input).unwrap();
 
