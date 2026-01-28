@@ -31,17 +31,32 @@
           </svg>
           <span class="text-sm font-medium text-gray-300" data-i18n="app.name">Opener</span>
         </div>
-        <div class="flex no-drag">
-          <button id="btn-minimize" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Minimize" data-i18n-title="title_bar.minimize">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
-            </svg>
-          </button>
-          <button id="btn-close" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors" title="Close" data-i18n-title="title_bar.close">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-            </svg>
-          </button>
+        <div class="flex items-center gap-1">
+          <div class="flex items-center gap-1 no-drag">
+            <button id="btn-github" class="flex items-center justify-center w-9 h-9 rounded-md text-gray-400 transition-colors hover:text-white hover:bg-gray-700" title="GitHub" data-i18n-title="title_bar.github">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.57 9.57 0 0 1 2.506.337c1.909-1.296 2.748-1.026 2.748-1.026.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.338 4.695-4.566 4.943.359.309.678.92.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.523 2 12 2z"/>
+              </svg>
+            </button>
+            <button id="btn-about" class="flex items-center rounded-md text-xs gap-1 h-9 px-2 text-gray-300 transition-colors hover:text-white hover:bg-gray-700" title="About" data-i18n-title="title_bar.about">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span data-i18n="title_bar.about">About</span>
+            </button>
+          </div>
+          <div class="flex no-drag">
+            <button id="btn-minimize" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Minimize" data-i18n-title="title_bar.minimize">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+              </svg>
+            </button>
+            <button id="btn-close" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors" title="Close" data-i18n-title="title_bar.close">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -167,6 +182,16 @@
                       data-i18n-placeholder="settings.entries.search_placeholder"
                       autocomplete="off"
                     >
+                  </div>
+                </div>
+                <div class="flex items-center justify-between text-sm">
+                  <label class="flex items-center gap-2 text-gray-400 cursor-pointer">
+                    <input type="checkbox" id="entries-select-all" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
+                    <span data-i18n="settings.entries.select_all">Select all</span>
+                  </label>
+                  <div class="flex items-center gap-3">
+                    <span id="entries-selected-count" class="text-xs text-gray-500"></span>
+                    <button id="btn-delete-selected-entries" class="btn-danger text-sm disabled:opacity-50 disabled:cursor-not-allowed" data-i18n="actions.delete_selected">Delete Selected</button>
                   </div>
                 </div>
               </div>
@@ -305,6 +330,50 @@
                   <p data-i18n="settings.about.built_with">Built with Tauri v2, HTML5, TailwindCSS, and SQLite</p>
                   <p class="mt-2" data-i18n="settings.about.offline">All dependencies are bundled locally - no internet required</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Modal -->
+    <div id="about-modal" class="modal-overlay hidden">
+      <div class="modal flex flex-col animate-fade-in" style="width: 520px;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 class="text-lg font-semibold" data-i18n="about_modal.title">About</h2>
+          <button id="btn-close-about" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="card p-6 space-y-4">
+            <div class="flex items-center gap-3">
+              <div class="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-500/20 text-primary-400">
+                <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold" data-i18n="app.name">Opener</h3>
+            </div>
+            <div class="text-sm space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-gray-400" data-i18n="about_modal.labels.name">App Name</span>
+                <span class="font-medium text-gray-200" data-i18n="app.name">Opener</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-400" data-i18n="about_modal.labels.version">Version</span>
+                <span class="font-medium text-gray-200" data-i18n="app.version">1.0.0</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-400" data-i18n="about_modal.labels.author">Author</span>
+                <span class="font-medium text-gray-200" data-i18n="app.author">virtualink</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-gray-400" data-i18n="about_modal.labels.wechat">WeChat</span>
+                <span class="font-medium text-gray-200" data-i18n="app.wechat">virtualink</span>
               </div>
             </div>
           </div>

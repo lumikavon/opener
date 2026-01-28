@@ -16,18 +16,25 @@ const state = {
   currentTab: 'entries',
   searchDebounceTimer: null,
   entriesSearchQuery: '',
+  selectedEntryIds: new Set(),
 };
 
 const DEFAULT_LANGUAGE = 'zh-CN';
+const GITHUB_REPO_URL = 'https://github.com/lumikavon/opener';
 
 const translations = {
   'zh-CN': {
     app: {
       name: 'Opener',
+      version: '1.0.0',
+      author: 'virtualink',
+      wechat: 'virtualink',
     },
     title_bar: {
       minimize: '最小化',
       close: '关闭',
+      github: 'GitHub',
+      about: '关于',
     },
     search: {
       placeholder: '搜索...',
@@ -48,6 +55,9 @@ const translations = {
         empty: '暂无条目。点击“新增条目”创建。',
         search_placeholder: '搜索条目...',
         no_match: '没有匹配的条目。',
+        select_all: '全选',
+        selected_count: '已选择 {{count}} 个',
+        select_entry: '选择 {{name}}',
       },
         display: {
         title: '显示与排序',
@@ -100,6 +110,15 @@ const translations = {
         version: '版本 1.0.0',
         built_with: '基于 Tauri v2、HTML5、TailwindCSS 和 SQLite 构建',
         offline: '所有依赖已本地打包 - 无需联网',
+      },
+    },
+    about_modal: {
+      title: '关于',
+      labels: {
+        name: '软件名称',
+        version: '版本',
+        author: '作者',
+        wechat: '作者微信',
       },
     },
     entry: {
@@ -248,6 +267,8 @@ const translations = {
       execute: '执行',
       delete_entry_title: '删除条目',
       delete_entry_message: '确定要删除“{{name}}”吗？',
+      delete_entries_title: '删除条目',
+      delete_entries_message: '确定要删除选中的 {{count}} 个条目吗？',
       delete_template_title: '删除模板',
       delete_template_message: '确定要删除“{{name}}”吗？',
       execute_command_title: '执行命令',
@@ -268,6 +289,7 @@ const translations = {
       create_entry: '创建条目',
       edit: '编辑',
       delete: '删除',
+      delete_selected: '删除所选',
       use_template: '使用模板',
       execute: '执行',
     },
@@ -283,6 +305,8 @@ const translations = {
       entry_update_failed: '更新条目失败：{{error}}',
       entry_deleted: '条目已删除',
       entry_delete_failed: '删除条目失败：{{error}}',
+      entries_deleted: '已删除 {{count}} 个条目',
+      entries_delete_failed: '删除失败：{{count}} 个条目未能删除',
       executed: '已执行：{{preview}}',
       execution_failed: '执行失败：{{error}}',
       settings_save_failed: '保存设置失败',
@@ -309,10 +333,15 @@ const translations = {
   'en-US': {
     app: {
       name: 'Opener',
+      version: '1.0.0',
+      author: 'virtualink',
+      wechat: 'virtualink',
     },
     title_bar: {
       minimize: 'Minimize',
       close: 'Close',
+      github: 'GitHub',
+      about: 'About',
     },
     search: {
       placeholder: 'Search...',
@@ -333,6 +362,9 @@ const translations = {
         empty: 'No entries yet. Click "Add Entry" to create one.',
         search_placeholder: 'Search entries...',
         no_match: 'No matching entries.',
+        select_all: 'Select all',
+        selected_count: 'Selected {{count}} items',
+        select_entry: 'Select {{name}}',
       },
         display: {
         title: 'Display & Sorting',
@@ -385,6 +417,15 @@ const translations = {
         version: 'Version 1.0.0',
         built_with: 'Built with Tauri v2, HTML5, TailwindCSS, and SQLite',
         offline: 'All dependencies are bundled locally - no internet required',
+      },
+    },
+    about_modal: {
+      title: 'About',
+      labels: {
+        name: 'App Name',
+        version: 'Version',
+        author: 'Author',
+        wechat: 'WeChat',
       },
     },
     entry: {
@@ -533,6 +574,8 @@ const translations = {
       execute: 'Execute',
       delete_entry_title: 'Delete Entry',
       delete_entry_message: 'Are you sure you want to delete "{{name}}"?',
+      delete_entries_title: 'Delete Entries',
+      delete_entries_message: 'Are you sure you want to delete the selected {{count}} entries?',
       delete_template_title: 'Delete Template',
       delete_template_message: 'Are you sure you want to delete "{{name}}"?',
       execute_command_title: 'Execute Command',
@@ -553,6 +596,7 @@ const translations = {
       create_entry: 'Create Entry',
       edit: 'Edit',
       delete: 'Delete',
+      delete_selected: 'Delete Selected',
       use_template: 'Use Template',
       execute: 'Execute',
     },
@@ -568,6 +612,8 @@ const translations = {
       entry_update_failed: 'Failed to update entry: {{error}}',
       entry_deleted: 'Entry deleted',
       entry_delete_failed: 'Failed to delete entry: {{error}}',
+      entries_deleted: 'Deleted {{count}} entries',
+      entries_delete_failed: 'Failed to delete {{count}} entries',
       executed: 'Executed: {{preview}}',
       execution_failed: 'Execution failed: {{error}}',
       settings_save_failed: 'Failed to save settings',
@@ -636,6 +682,23 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+async function openExternalLink(url) {
+  try {
+    if (window.__TAURI__?.shell?.open) {
+      await window.__TAURI__.shell.open(url);
+      return;
+    }
+  } catch (error) {
+    // Fallback to window.open below.
+  }
+
+  try {
+    window.open(url, '_blank', 'noopener');
+  } catch (error) {
+    // Ignore if blocked.
+  }
 }
 
 function normalizeLanguage(language) {
@@ -757,13 +820,18 @@ async function updateEntry(id, input) {
   }
 }
 
-async function deleteEntry(id) {
+async function deleteEntry(id, options = {}) {
+  const silent = options.silent === true;
   try {
     await invoke('delete_entry', { id });
-    showToast(t('toasts.entry_deleted'), 'success');
+    if (!silent) {
+      showToast(t('toasts.entry_deleted'), 'success');
+    }
   } catch (error) {
     console.error('Failed to delete entry:', error);
-    showToast(t('toasts.entry_delete_failed', { error: error.message }), 'error');
+    if (!silent) {
+      showToast(t('toasts.entry_delete_failed', { error: error.message }), 'error');
+    }
     throw error;
   }
 }
@@ -964,7 +1032,7 @@ async function importData(strategy) {
     if (filePath) {
       const { readTextFile } = window.__TAURI__.fs;
       const jsonData = await readTextFile(filePath);
-      const result = await invoke('import_data', { input: { jsonData, strategy } });
+      const result = await invoke('import_data', { input: { json_data: jsonData, strategy } });
       showToast(t('toasts.import_complete', {
         entries: result.entries_imported,
         hotkeys: result.hotkeys_imported,
@@ -1055,11 +1123,13 @@ function renderSearchResults(results, options = {}) {
   });
 }
 
-function renderEntriesList(entries) {
-  const container = document.getElementById('entries-list');
-
+function getFilteredEntries(entries) {
   const query = state.entriesSearchQuery.trim().toLowerCase();
-  const filteredEntries = query ? entries.filter(entry => {
+  if (!query) {
+    return entries;
+  }
+
+  return entries.filter(entry => {
     const haystack = [
       entry.name,
       entry.target,
@@ -1070,7 +1140,113 @@ function renderEntriesList(entries) {
       entry.hotkey_position,
     ].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(query);
-  }) : entries;
+  });
+}
+
+function pruneSelectedEntries(entries) {
+  const validIds = new Set(entries.map(entry => entry.id));
+  state.selectedEntryIds.forEach(id => {
+    if (!validIds.has(id)) {
+      state.selectedEntryIds.delete(id);
+    }
+  });
+}
+
+function updateEntriesSelectionUI(filteredEntries) {
+  const selectAll = document.getElementById('entries-select-all');
+  const deleteBtn = document.getElementById('btn-delete-selected-entries');
+  const countEl = document.getElementById('entries-selected-count');
+
+  const totalVisible = filteredEntries.length;
+  const selectedVisible = filteredEntries.filter(entry => state.selectedEntryIds.has(entry.id)).length;
+  const totalSelected = state.selectedEntryIds.size;
+
+  if (selectAll) {
+    selectAll.checked = totalVisible > 0 && selectedVisible === totalVisible;
+    selectAll.indeterminate = selectedVisible > 0 && selectedVisible < totalVisible;
+    selectAll.disabled = totalVisible === 0;
+  }
+
+  if (deleteBtn) {
+    deleteBtn.disabled = totalSelected === 0;
+  }
+
+  if (countEl) {
+    countEl.textContent = totalSelected > 0 ? t('settings.entries.selected_count', { count: totalSelected }) : '';
+  }
+}
+
+function setEntryRowSelected(entryId, isSelected) {
+  const row = document.querySelector(`.entry-row[data-id="${entryId}"]`);
+  if (!row) return;
+
+  row.classList.toggle('ring-1', isSelected);
+  row.classList.toggle('ring-primary-500/40', isSelected);
+  row.classList.toggle('bg-gray-800/80', isSelected);
+
+  const checkbox = row.querySelector('.entry-select');
+  if (checkbox) {
+    checkbox.checked = isSelected;
+  }
+}
+
+function toggleEntrySelection(entryId, isSelected) {
+  const nextSelected = isSelected !== undefined ? isSelected : !state.selectedEntryIds.has(entryId);
+  if (nextSelected) {
+    state.selectedEntryIds.add(entryId);
+  } else {
+    state.selectedEntryIds.delete(entryId);
+  }
+
+  setEntryRowSelected(entryId, nextSelected);
+  updateEntriesSelectionUI(getFilteredEntries(state.entries));
+}
+
+function handleSelectAllEntries(isSelected) {
+  const filteredEntries = getFilteredEntries(state.entries);
+  if (isSelected) {
+    filteredEntries.forEach(entry => state.selectedEntryIds.add(entry.id));
+  } else {
+    filteredEntries.forEach(entry => state.selectedEntryIds.delete(entry.id));
+  }
+  renderEntriesList(state.entries);
+}
+
+async function handleDeleteSelectedEntries() {
+  const selectedIds = Array.from(state.selectedEntryIds);
+  if (selectedIds.length === 0) return;
+
+  showConfirmModal(
+    t('confirm.delete_entries_title'),
+    t('confirm.delete_entries_message', { count: selectedIds.length }),
+    t('confirm.irreversible'),
+    async () => {
+      let failedCount = 0;
+      for (const id of selectedIds) {
+        try {
+          await deleteEntry(id, { silent: true });
+        } catch (error) {
+          failedCount += 1;
+        }
+      }
+
+      await loadAllData();
+      state.selectedEntryIds.clear();
+      renderEntriesList(state.entries);
+
+      if (failedCount === 0) {
+        showToast(t('toasts.entries_deleted', { count: selectedIds.length }), 'success');
+      } else {
+        showToast(t('toasts.entries_delete_failed', { count: failedCount }), 'error');
+      }
+    }
+  );
+}
+
+function renderEntriesList(entries) {
+  const container = document.getElementById('entries-list');
+  pruneSelectedEntries(entries);
+  const filteredEntries = getFilteredEntries(entries);
 
   if (entries.length === 0) {
     container.innerHTML = `
@@ -1078,6 +1254,7 @@ function renderEntriesList(entries) {
         <p>${t('settings.entries.empty')}</p>
       </div>
     `;
+    updateEntriesSelectionUI(filteredEntries);
     return;
   }
 
@@ -1087,11 +1264,18 @@ function renderEntriesList(entries) {
         <p>${t('settings.entries.no_match')}</p>
       </div>
     `;
+    updateEntriesSelectionUI(filteredEntries);
     return;
   }
 
-  container.innerHTML = filteredEntries.map(entry => `
-    <div class="card p-3 flex items-center gap-3">
+  container.innerHTML = filteredEntries.map(entry => {
+    const isSelected = state.selectedEntryIds.has(entry.id);
+    const selectedClass = isSelected ? 'ring-1 ring-primary-500/40 bg-gray-800/80' : '';
+    return `
+    <div class="entry-row card p-3 flex items-center gap-3 ${selectedClass}" data-id="${entry.id}">
+      <label class="flex items-center">
+        <input type="checkbox" class="entry-select w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500" data-id="${entry.id}" ${isSelected ? 'checked' : ''} aria-label="${escapeHtml(t('settings.entries.select_entry', { name: entry.name }))}">
+      </label>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
           <span class="font-medium">${escapeHtml(entry.name)}</span>
@@ -1113,7 +1297,28 @@ function renderEntriesList(entries) {
         </button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
+
+  container.querySelectorAll('.entry-select').forEach(checkbox => {
+    checkbox.addEventListener('change', (e) => {
+      e.stopPropagation();
+      const entryId = checkbox.dataset.id;
+      toggleEntrySelection(entryId, checkbox.checked);
+    });
+  });
+
+  container.querySelectorAll('.entry-row').forEach(row => {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('button') || e.target.closest('input') || e.target.closest('label')) {
+        return;
+      }
+      const entryId = row.dataset.id;
+      toggleEntrySelection(entryId);
+    });
+  });
+
+  updateEntriesSelectionUI(filteredEntries);
 }
 
 function renderTemplatesList(templates) {
@@ -1303,6 +1508,15 @@ function showSettingsModal() {
 
 function closeSettingsModal() {
   document.getElementById('settings-modal').classList.add('hidden');
+}
+
+function showAboutModal() {
+  closeAllModals();
+  document.getElementById('about-modal').classList.remove('hidden');
+}
+
+function closeAboutModal() {
+  document.getElementById('about-modal').classList.add('hidden');
 }
 
 function switchSettingsTab(tabName) {
@@ -1890,6 +2104,7 @@ async function handleUseTemplateFormSubmit(e) {
 
 function closeAllModals() {
   document.getElementById('settings-modal').classList.add('hidden');
+  document.getElementById('about-modal').classList.add('hidden');
   document.getElementById('entry-modal').classList.add('hidden');
   document.getElementById('template-modal').classList.add('hidden');
   document.getElementById('use-template-modal').classList.add('hidden');
@@ -2225,6 +2440,13 @@ async function init() {
     invoke('close_window');
   });
 
+  document.getElementById('btn-github').addEventListener('click', () => {
+    openExternalLink(GITHUB_REPO_URL);
+  });
+
+  document.getElementById('btn-about').addEventListener('click', showAboutModal);
+  document.getElementById('btn-close-about').addEventListener('click', closeAboutModal);
+
   // Settings modal
   document.getElementById('btn-settings').addEventListener('click', showSettingsModal);
   document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
@@ -2240,6 +2462,18 @@ async function init() {
   if (entriesSearchInput) {
     entriesSearchInput.value = state.entriesSearchQuery;
     entriesSearchInput.addEventListener('input', handleEntriesSearchInput);
+  }
+
+  const entriesSelectAll = document.getElementById('entries-select-all');
+  if (entriesSelectAll) {
+    entriesSelectAll.addEventListener('change', (e) => {
+      handleSelectAllEntries(e.target.checked);
+    });
+  }
+
+  const deleteSelectedEntriesBtn = document.getElementById('btn-delete-selected-entries');
+  if (deleteSelectedEntriesBtn) {
+    deleteSelectedEntriesBtn.addEventListener('click', handleDeleteSelectedEntries);
   }
 
   // Entry modal
