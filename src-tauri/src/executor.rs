@@ -416,13 +416,14 @@ fn execute_hotkey_app(entry: &Entry) -> ExecutorResult<()> {
     if let Some(hwnd) = wait_for_window(&filter, detect_hidden, Duration::from_secs(15)) {
         restore_and_focus(hwnd);
         apply_position(hwnd, &position)?;
-        Ok(())
     } else {
-        Err(ExecutorError::ExecutionFailed(format!(
-            "HotKey应用打开失败: {}",
+        log::warn!(
+            "HotKey应用窗口未检测到，已跳过定位: {}",
             entry.target
-        )))
+        );
     }
+
+    Ok(())
 }
 
 #[cfg(not(windows))]
