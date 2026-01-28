@@ -286,6 +286,7 @@ const translations = {
       cancel: '取消',
       clear: '清除',
       save: '保存',
+      test: '测试',
       create_entry: '创建条目',
       edit: '编辑',
       delete: '删除',
@@ -593,6 +594,7 @@ const translations = {
       cancel: 'Cancel',
       clear: 'Clear',
       save: 'Save',
+      test: 'Test',
       create_entry: 'Create Entry',
       edit: 'Edit',
       delete: 'Delete',
@@ -836,15 +838,41 @@ async function deleteEntry(id, options = {}) {
   }
 }
 
-async function executeEntry(id) {
+async function executeEntry(id, options = {}) {
+  const silent = options.silent === true;
   try {
     const preview = await invoke('execute_entry', { id, ahkPath: null });
-    showToast(t('toasts.executed', { preview }), 'success');
+    if (!silent) {
+      showToast(t('toasts.executed', { preview }), 'success');
+    }
     return preview;
   } catch (error) {
-    console.error('Execution failed:', error);
-    showToast(t('toasts.execution_failed', { error: error.message }), 'error');
-    throw error;
+    if (!silent) {
+      console.error('Execution failed:', error);
+      showToast(t('toasts.execution_failed', { error: error.message }), 'error');
+      throw error;
+    }
+    console.error('Execution failed (silent):', error);
+    return null;
+  }
+}
+
+async function executeEntryInput(input, options = {}) {
+  const silent = options.silent === true;
+  try {
+    const preview = await invoke('execute_entry_input', { input, ahkPath: null });
+    if (!silent) {
+      showToast(t('toasts.executed', { preview }), 'success');
+    }
+    return preview;
+  } catch (error) {
+    if (!silent) {
+      console.error('Execution failed:', error);
+      showToast(t('toasts.execution_failed', { error: error.message }), 'error');
+      throw error;
+    }
+    console.error('Execution failed (silent):', error);
+    return null;
   }
 }
 
@@ -1285,6 +1313,11 @@ function renderEntriesList(entries) {
         <div class="text-sm text-gray-500 truncate">${escapeHtml(entry.target)}</div>
       </div>
       <div class="flex items-center gap-1">
+        <button class="btn-ghost p-1.5 rounded text-emerald-400 hover:text-emerald-300" onclick="testEntry('${entry.id}')" title="${t('actions.test')}">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
+          </svg>
+        </button>
         <button class="btn-ghost p-1.5 rounded" onclick="editEntry('${entry.id}')" title="${t('actions.edit')}">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -1403,23 +1436,45 @@ function handleEntriesSearchInput(e) {
   renderEntriesList(state.entries);
 }
 
-async function clearSearchAfterExecution() {
+function clearSearchAfterExecution() {
   const searchInput = document.getElementById('search-input');
   if (!searchInput) return;
   if (searchInput.value) {
     searchInput.value = '';
   }
-  await handleSearch('');
+  void handleSearch('');
 }
 
-async function handleEntryExecution(id) {
+function hideAppWindow() {
+  invoke('minimize_window').catch((error) => {
+    console.error('Failed to hide window:', error);
+  });
+}
+
+function fireAndForgetExecution(id) {
+  executeEntry(id, { silent: true }).catch(() => {});
+}
+
+async function handleEntryExecution(id, options = {}) {
   const entry = state.entries.find(e => e.id === id);
   if (!entry) return;
+  const shouldClearSearch = options.clearSearch !== false;
+  const shouldHideWindow = options.hideWindow === true;
+  const shouldExecuteImmediately = options.immediate === true;
 
   const dangerousTypes = ['cmd', 'wsl', 'ssh', 'script', 'ahk', 'hotkey_app'];
   const needsConfirmation = state.settings?.confirm_dangerous_commands &&
                             dangerousTypes.includes(entry.type) &&
                             entry.confirm_before_run !== false;
+
+  const applyExecutionSideEffects = () => {
+    if (shouldClearSearch) {
+      clearSearchAfterExecution();
+    }
+    if (shouldHideWindow) {
+      hideAppWindow();
+    }
+  };
 
   if (needsConfirmation) {
     showConfirmModal(
@@ -1427,14 +1482,28 @@ async function handleEntryExecution(id) {
       t('confirm.execute_command_message', { type: getEntryTypeLabel(entry.type) }),
       entry.target,
       async () => {
+        if (shouldExecuteImmediately) {
+          applyExecutionSideEffects();
+          fireAndForgetExecution(id);
+          return;
+        }
         await executeEntry(id);
-        await clearSearchAfterExecution();
+        applyExecutionSideEffects();
       }
     );
   } else {
+    if (shouldExecuteImmediately) {
+      applyExecutionSideEffects();
+      fireAndForgetExecution(id);
+      return;
+    }
     await executeEntry(id);
-    await clearSearchAfterExecution();
+    applyExecutionSideEffects();
   }
+}
+
+function testEntry(id) {
+  handleEntryExecution(id, { clearSearch: false });
 }
 
 function handleKeyboardNavigation(e) {
@@ -1463,7 +1532,7 @@ function handleKeyboardNavigation(e) {
     case 'Enter':
       if (state.searchResults.length > 0 && state.selectedIndex >= 0) {
         const selectedEntry = state.searchResults[state.selectedIndex].entry;
-        handleEntryExecution(selectedEntry.id);
+        handleEntryExecution(selectedEntry.id, { clearSearch: true, hideWindow: true, immediate: true });
       }
       break;
 
@@ -1740,16 +1809,11 @@ function buildSshTarget(host, user, port) {
   return `${userPrefix}${host}${portSuffix}`;
 }
 
-async function handleEntryFormSubmit(e) {
-  e.preventDefault();
-
-  const id = document.getElementById('entry-id').value;
+function buildEntryInputFromForm() {
   const type = document.getElementById('entry-type').value;
-
   const targetInput = document.getElementById('entry-target');
   let target = targetInput.value;
 
-  // For script types, use script content if no path
   if ((type === 'script' || type === 'ahk') && !target.trim()) {
     const scriptContent = document.getElementById('entry-script-content').value;
     if (scriptContent.trim()) {
@@ -1770,63 +1834,106 @@ async function handleEntryFormSubmit(e) {
     target = buildSshTarget(sshHost, sshUser, sshPort);
   }
 
-    const argsValue = type === 'hotkey_app' ? '' : document.getElementById('entry-args').value;
-    const input = {
-      name: document.getElementById('entry-name').value,
-      type: type,
-      target: target,
-      args: argsValue || null,
-      workdir: document.getElementById('entry-workdir').value || null,
-      description: document.getElementById('entry-description').value || null,
-      tags: document.getElementById('entry-tags').value || null,
-      icon_path: document.getElementById('entry-icon').value || null,
-      show_terminal: document.getElementById('entry-show-terminal').checked,
-      confirm_before_run: document.getElementById('entry-confirm').checked,
-    };
-    const hotkeyValue = document.getElementById('entry-hotkey').value.trim();
+  const argsValue = type === 'hotkey_app' ? '' : document.getElementById('entry-args').value;
+  const input = {
+    name: document.getElementById('entry-name').value,
+    type: type,
+    target: target,
+    args: argsValue || null,
+    workdir: document.getElementById('entry-workdir').value || null,
+    description: document.getElementById('entry-description').value || null,
+    tags: document.getElementById('entry-tags').value || null,
+    icon_path: document.getElementById('entry-icon').value || null,
+    show_terminal: document.getElementById('entry-show-terminal').checked,
+    confirm_before_run: document.getElementById('entry-confirm').checked,
+  };
+  const hotkeyValue = document.getElementById('entry-hotkey').value.trim();
 
-  // Add SSH fields
   if (type === 'ssh') {
     input.ssh_host = sshHost || null;
     input.ssh_user = sshUser || null;
     input.ssh_port = sshPort;
   }
 
-  // Add WSL fields
   if (type === 'wsl') {
     input.wsl_distro = document.getElementById('entry-wsl-distro').value || null;
   }
 
-  // Add Hotkey App fields
   if (type === 'hotkey_app') {
     input.hotkey_filter = document.getElementById('entry-hotkey-filter').value || null;
     input.hotkey_position = document.getElementById('entry-hotkey-position').value || 'max';
     input.hotkey_detect_hidden = document.getElementById('entry-hotkey-detect-hidden').checked;
   }
 
+  return { input, hotkeyValue };
+}
+
+async function handleEntryFormSubmit(e) {
+  e.preventDefault();
+
+  const id = document.getElementById('entry-id').value;
+  const { input, hotkeyValue } = buildEntryInputFromForm();
+
+  try {
+    let savedEntry;
+    if (id) {
+      savedEntry = await updateEntry(id, input);
+    } else {
+      savedEntry = await createEntry(input);
+      document.getElementById('entry-id').value = savedEntry.id;
+      document.getElementById('entry-modal-title').textContent = t('entry.modal_edit');
+    }
+
     try {
-      let savedEntry;
-      if (id) {
-        savedEntry = await updateEntry(id, input);
-      } else {
-        savedEntry = await createEntry(input);
-        document.getElementById('entry-id').value = savedEntry.id;
-        document.getElementById('entry-modal-title').textContent = t('entry.modal_edit');
-      }
-
-      try {
-        await syncEntryHotkey(savedEntry.id, hotkeyValue);
-      } catch (error) {
-        await loadAllData();
-        renderEntriesList(state.entries);
-        return;
-      }
-
+      await syncEntryHotkey(savedEntry.id, hotkeyValue);
+    } catch (error) {
       await loadAllData();
-      closeEntryModal();
       renderEntriesList(state.entries);
+      return;
+    }
+
+    await loadAllData();
+    closeEntryModal();
+    renderEntriesList(state.entries);
   } catch (error) {
     // Error already shown via toast
+  }
+}
+
+async function handleEntryFormTest() {
+  syncEntryFormRequirements();
+  const form = document.getElementById('entry-form');
+  if (!form.reportValidity()) {
+    return;
+  }
+
+  const { input } = buildEntryInputFromForm();
+  if (!input) return;
+
+  const dangerousTypes = ['cmd', 'wsl', 'ssh', 'script', 'ahk', 'hotkey_app'];
+  const needsConfirmation = state.settings?.confirm_dangerous_commands &&
+                            dangerousTypes.includes(input.type) &&
+                            input.confirm_before_run !== false;
+
+  const runTest = async () => {
+    try {
+      await executeEntryInput(input);
+    } catch (error) {
+      // Error already shown via toast.
+    }
+  };
+
+  if (needsConfirmation) {
+    showConfirmModal(
+      t('confirm.execute_command_title'),
+      t('confirm.execute_command_message', { type: getEntryTypeLabel(input.type) }),
+      input.target,
+      async () => {
+        await runTest();
+      }
+    );
+  } else {
+    await runTest();
   }
 }
 
@@ -2118,6 +2225,10 @@ window.editEntry = async function(id) {
   if (entry) {
     showEditEntryModal(entry);
   }
+};
+
+window.testEntry = function(id) {
+  testEntry(id);
 };
 
 window.confirmDeleteEntry = function(id) {
@@ -2480,6 +2591,7 @@ async function init() {
   document.getElementById('btn-add-entry').addEventListener('click', showAddEntryModal);
   document.getElementById('btn-close-entry-modal').addEventListener('click', closeEntryModal);
   document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
+  document.getElementById('btn-test-entry').addEventListener('click', handleEntryFormTest);
   document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
   document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
   document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);

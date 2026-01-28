@@ -383,7 +383,7 @@
 
     <!-- Entry Edit Modal -->
     <div id="entry-modal" class="modal-overlay hidden">
-      <div class="modal animate-fade-in" style="width: 600px; max-height: 80vh;">
+      <div class="modal flex flex-col animate-fade-in" style="width: 600px; max-height: 80vh;">
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
           <h2 id="entry-modal-title" class="text-lg font-semibold" data-i18n="entry.modal_add">Add Entry</h2>
           <button id="btn-close-entry-modal" class="btn-ghost p-1.5 rounded-lg">
@@ -392,7 +392,7 @@
             </svg>
           </button>
         </div>
-        <div class="p-6 overflow-y-auto" style="max-height: calc(80vh - 140px);">
+        <div class="p-6 overflow-y-auto flex-1 min-h-0">
           <form id="entry-form" class="space-y-4">
             <input type="hidden" id="entry-id">
             <div>
@@ -523,6 +523,7 @@
         </div>
         <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
           <button type="button" id="btn-cancel-entry" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>
+          <button type="button" id="btn-test-entry" class="btn-secondary" data-i18n="actions.test">Test</button>
           <button type="submit" form="entry-form" class="btn-primary" data-i18n="actions.save">Save</button>
         </div>
       </div>

@@ -162,6 +162,7 @@ fn main() {
             commands::delete_entry,
             commands::toggle_entry,
             commands::execute_entry,
+            commands::execute_entry_input,
             commands::record_entry_usage,
             // Hotkey commands
             commands::get_all_hotkeys,

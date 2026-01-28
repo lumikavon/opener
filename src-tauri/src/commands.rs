@@ -176,20 +176,73 @@ pub fn toggle_entry(state: State<AppState>, id: String, enabled: bool) -> Comman
     Ok(db.toggle_entry(&id, enabled)?)
 }
 
-#[tauri::command]
-pub fn execute_entry(state: State<AppState>, id: String, ahk_path: Option<String>) -> CommandResult<String> {
-    let db = state.db.lock().map_err(|_| lock_error())?;
+fn entry_from_input(input: CreateEntryInput) -> Entry {
+    let mut entry = Entry::new(input.name, input.entry_type, input.target);
+    entry.args = input.args;
+    entry.workdir = input.workdir;
+    entry.icon_path = input.icon_path;
+    entry.tags = input.tags;
+    entry.description = input.description;
+    entry.enabled = input.enabled.unwrap_or(true);
+    entry.confirm_before_run = input.confirm_before_run;
+    entry.show_terminal = input.show_terminal;
+    entry.wsl_distro = input.wsl_distro;
+    entry.ssh_host = input.ssh_host;
+    entry.ssh_user = input.ssh_user;
+    entry.ssh_port = input.ssh_port;
+    entry.ssh_key_id = input.ssh_key_id;
+    entry.env_vars = input.env_vars;
+    entry.hotkey_filter = input.hotkey_filter;
+    entry.hotkey_position = input.hotkey_position;
+    entry.hotkey_detect_hidden = input.hotkey_detect_hidden;
+    entry
+}
 
-    let entry = db.get_entry(&id)?;
-    drop(db); // Release lock before execution
+#[tauri::command]
+pub async fn execute_entry(
+    state: State<'_, AppState>,
+    id: String,
+    ahk_path: Option<String>,
+) -> CommandResult<String> {
+    let entry = {
+        let db = state.db.lock().map_err(|_| lock_error())?;
+        db.get_entry(&id)?
+    };
 
     let preview = executor::get_execution_preview(&entry);
-    executor::execute_entry(&entry, ahk_path.as_deref())?;
+    let execution_result = tauri::async_runtime::spawn_blocking(move || {
+        executor::execute_entry(&entry, ahk_path.as_deref())
+    })
+    .await
+    .map_err(|error| CommandError {
+        message: format!("Execution task failed: {}", error),
+        code: "EXECUTOR_ERROR".to_string(),
+    })?;
+    execution_result?;
 
     // Record usage (re-acquire lock)
     let db = state.db.lock().map_err(|_| lock_error())?;
     let _ = db.record_entry_usage(&id);
 
+    Ok(preview)
+}
+
+#[tauri::command]
+pub async fn execute_entry_input(
+    input: CreateEntryInput,
+    ahk_path: Option<String>,
+) -> CommandResult<String> {
+    let entry = entry_from_input(input);
+    let preview = executor::get_execution_preview(&entry);
+    let execution_result = tauri::async_runtime::spawn_blocking(move || {
+        executor::execute_entry(&entry, ahk_path.as_deref())
+    })
+    .await
+    .map_err(|error| CommandError {
+        message: format!("Execution task failed: {}", error),
+        code: "EXECUTOR_ERROR".to_string(),
+    })?;
+    execution_result?;
     Ok(preview)
 }
 
