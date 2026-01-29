@@ -374,10 +374,12 @@ ApplyPosition(filter, position, left, top, width, height) {
         try WinMove left + width / 2, top, width / 2, height, filter
     } else if (position = "max") {
         try WinMaximize filter
+    } else if (position = "keep") {
+        return
     }
 }
 
-DoRunApp(name, executable, workdir, filter, position := "max", detectHidden := true) {
+DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := true) {
     prevDetect := A_DetectHiddenWindows
     DetectHiddenWindows detectHidden
 
@@ -471,9 +473,10 @@ DoRunApp(name, executable, workdir, filter, position := "max", detectHidden := t
                     name: "position".to_string(),
                     var_type: VariableType::Choice,
                     label: "窗口位置".to_string(),
-                    default_value: Some("max".to_string()),
+                    default_value: Some("keep".to_string()),
                     required: true,
                     choices: Some(vec![
+                        "keep".to_string(),
                         "left".to_string(),
                         "right".to_string(),
                         "max".to_string(),

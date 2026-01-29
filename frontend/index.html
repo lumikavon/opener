@@ -38,6 +38,12 @@
                 <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.57 9.57 0 0 1 2.506.337c1.909-1.296 2.748-1.026 2.748-1.026.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.338 4.695-4.566 4.943.359.309.678.92.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .268.18.58.688.482A10.019 10.019 0 0 0 22 12.017C22 6.484 17.523 2 12 2z"/>
               </svg>
             </button>
+            <button id="btn-help" class="flex items-center rounded-md text-xs gap-1 h-9 px-2 text-gray-300 transition-colors hover:text-white hover:bg-gray-700" title="Help" data-i18n-title="title_bar.help">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9.75a3.75 3.75 0 117.5 0c0 2.25-2.25 2.25-2.25 4.5m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span data-i18n="title_bar.help">Help</span>
+            </button>
             <button id="btn-about" class="flex items-center rounded-md text-xs gap-1 h-9 px-2 text-gray-300 transition-colors hover:text-white hover:bg-gray-700" title="About" data-i18n-title="title_bar.about">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -49,6 +55,11 @@
             <button id="btn-minimize" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Minimize" data-i18n-title="title_bar.minimize">
               <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+              </svg>
+            </button>
+            <button id="btn-maximize" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700 transition-colors" title="Maximize" data-i18n-title="title_bar.maximize">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="1.5" stroke-width="2"/>
               </svg>
             </button>
             <button id="btn-close" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors" title="Close" data-i18n-title="title_bar.close">
@@ -381,6 +392,73 @@
       </div>
     </div>
 
+    <!-- Help Modal -->
+    <div id="help-modal" class="modal-overlay hidden">
+      <div class="modal flex flex-col animate-fade-in" style="width: 760px; max-height: 80vh;">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
+          <h2 class="text-lg font-semibold" data-i18n="help_modal.title">Help</h2>
+          <button id="btn-close-help" class="btn-ghost p-1.5 rounded-lg">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="p-6 overflow-y-auto text-sm text-gray-200 space-y-6">
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.overview.title">概览</h3>
+            <p class="text-gray-300" data-i18n="help_modal.sections.overview.body">Opener 是一款离线可用的桌面启动器，支持多种条目类型与快捷键操作。</p>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.features.title">主要功能</h3>
+            <ul class="list-disc list-inside text-gray-300 space-y-1">
+              <li data-i18n="help_modal.sections.features.item1">支持 App / URL / 文件 / 目录 / 命令 / WSL / SSH / 脚本 / 快捷方式 / AutoHotkey</li>
+              <li data-i18n="help_modal.sections.features.item2">模糊搜索与键盘导航</li>
+              <li data-i18n="help_modal.sections.features.item3">脚本模板与变量替换</li>
+              <li data-i18n="help_modal.sections.features.item4">快捷键绑定（应用级与全局）</li>
+              <li data-i18n="help_modal.sections.features.item5">导入/导出配置</li>
+              <li data-i18n="help_modal.sections.features.item6">敏感信息安全存储，离线运行</li>
+            </ul>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.add_entry.title">新增条目</h3>
+            <ol class="list-decimal list-inside text-gray-300 space-y-1">
+              <li data-i18n="help_modal.sections.add_entry.item1">打开设置（齿轮按钮）</li>
+              <li data-i18n="help_modal.sections.add_entry.item2">进入“条目”标签页</li>
+              <li data-i18n="help_modal.sections.add_entry.item3">点击“新增条目”</li>
+              <li data-i18n="help_modal.sections.add_entry.item4">选择类型并填写对应字段</li>
+            </ol>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.shortcuts.title">键盘操作</h3>
+            <ul class="list-disc list-inside text-gray-300 space-y-1">
+              <li data-i18n="help_modal.sections.shortcuts.item1">↑/↓：在搜索结果中移动</li>
+              <li data-i18n="help_modal.sections.shortcuts.item2">Enter：执行选中条目</li>
+              <li data-i18n="help_modal.sections.shortcuts.item3">Esc：清空搜索或关闭弹窗</li>
+            </ul>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.templates.title">脚本模板</h3>
+            <p class="text-gray-300" data-i18n="help_modal.sections.templates.body">进入“模板”标签页，点击使用按钮，填写变量后即可生成条目。模板变量使用 {{variable_name}} 语法。</p>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.import_export.title">导入/导出</h3>
+            <p class="text-gray-300" data-i18n="help_modal.sections.import_export.body">在“导入/导出”中可导出全部配置，或从 JSON 文件导入并选择合并策略。</p>
+          </div>
+
+          <div class="space-y-2">
+            <h3 class="text-base font-semibold" data-i18n="help_modal.sections.requirements.title">依赖说明</h3>
+            <p class="text-gray-300" data-i18n="help_modal.sections.requirements.body">Windows 下使用 AutoHotkey 功能需要安装 AutoHotkey v2。</p>
+            <p class="text-gray-300" data-i18n="help_modal.sections.requirements.ahk_install">可通过 winget 安装：winget install AutoHotkey.AutoHotkey</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Entry Edit Modal -->
     <div id="entry-modal" class="modal-overlay hidden">
       <div class="modal flex flex-col animate-fade-in" style="width: 600px; max-height: 80vh;">
@@ -436,12 +514,20 @@
             <div id="field-hotkey-app" class="hidden space-y-4">
               <div>
                 <label class="label" data-i18n="entry.fields.hotkey_filter">Window Filter *</label>
-                <input type="text" id="entry-hotkey-filter" class="input" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
+                <div class="flex gap-2">
+                  <input type="text" id="entry-hotkey-filter" class="input flex-1" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
+                  <button type="button" id="btn-window-spy" class="btn-ghost p-2 rounded-lg" data-i18n-title="actions.window_spy" title="Window Match" aria-label="Window Match">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m9-6a6 6 0 100 12 6 6 0 000-12z"/>
+                    </svg>
+                  </button>
+                </div>
               </div>
               <div class="grid grid-cols-2 gap-4 items-end">
                 <div>
                   <label class="label" data-i18n="entry.fields.hotkey_position">Window Position *</label>
                   <select id="entry-hotkey-position" class="input">
+                    <option value="keep" data-i18n="entry.position_options.keep" selected>Keep</option>
                     <option value="left" data-i18n="entry.position_options.left">Left</option>
                     <option value="right" data-i18n="entry.position_options.right">Right</option>
                     <option value="max" data-i18n="entry.position_options.max">Maximize</option>

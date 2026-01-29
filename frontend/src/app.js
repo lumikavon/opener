@@ -32,8 +32,10 @@ const translations = {
     },
     title_bar: {
       minimize: '最小化',
+      maximize: '最大化',
       close: '关闭',
       github: 'GitHub',
+      help: '帮助',
       about: '关于',
     },
     search: {
@@ -58,6 +60,8 @@ const translations = {
         select_all: '全选',
         selected_count: '已选择 {{count}} 个',
         select_entry: '选择 {{name}}',
+        copy_suffix: '副本',
+        untitled: '未命名',
       },
         display: {
         title: '显示与排序',
@@ -121,6 +125,50 @@ const translations = {
         wechat: '作者微信',
       },
     },
+    help_modal: {
+      title: '帮助',
+      sections: {
+        overview: {
+          title: '概览',
+          body: 'Opener 是一款离线可用的桌面启动器，支持多种条目类型与快捷键操作。',
+        },
+        features: {
+          title: '主要功能',
+          item1: '支持 App / URL / 文件 / 目录 / 命令 / WSL / SSH / 脚本 / 快捷方式 / AutoHotkey',
+          item2: '模糊搜索与键盘导航',
+          item3: '脚本模板与变量替换',
+          item4: '快捷键绑定（应用级与全局）',
+          item5: '导入/导出配置',
+          item6: '敏感信息安全存储，离线运行',
+        },
+        add_entry: {
+          title: '新增条目',
+          item1: '打开设置（齿轮按钮）',
+          item2: '进入“条目”标签页',
+          item3: '点击“新增条目”',
+          item4: '选择类型并填写对应字段',
+        },
+        shortcuts: {
+          title: '键盘操作',
+          item1: '↑/↓：在搜索结果中移动',
+          item2: 'Enter：执行选中条目',
+          item3: 'Esc：清空搜索或关闭弹窗',
+        },
+        templates: {
+          title: '脚本模板',
+          body: '进入“模板”标签页，点击使用按钮，填写变量后即可生成条目。模板变量使用 {{variable_name}} 语法。',
+        },
+        import_export: {
+          title: '导入/导出',
+          body: '在“导入/导出”中可导出全部配置，或从 JSON 文件导入并选择合并策略。',
+        },
+        requirements: {
+          title: '依赖说明',
+          body: 'Windows 下使用 AutoHotkey 功能需要安装 AutoHotkey v2。',
+          ahk_install: '可通过 winget 安装：winget install AutoHotkey.AutoHotkey',
+        },
+      },
+    },
     entry: {
       modal_add: '新增条目',
       modal_edit: '编辑条目',
@@ -131,16 +179,16 @@ const translations = {
         app_name: '应用名称 *',
         hotkey: '快捷键 *',
         args: '参数',
-        workdir: '工作目录',
+        workdir: '工作目录（支持 ${VAR} 环境变量）',
         description: '描述',
         tags: '标签',
         global_hotkey: '全局快捷键（可选）',
         icon_path: '图标路径',
-        hotkey_filter: '窗口匹配 *',
+        hotkey_filter: '窗口匹配 *（支持 ${VAR} 环境变量）',
         hotkey_position: '窗口位置 *',
         hotkey_detect_hidden: '检测隐藏窗口',
-        ssh_host: 'SSH 主机 *',
-        ssh_user: 'SSH 用户',
+        ssh_host: 'SSH 主机 *（支持 ${VAR} 环境变量）',
+        ssh_user: 'SSH 用户（支持 ${VAR} 环境变量）',
         ssh_port: 'SSH 端口',
         wsl_distro: 'WSL 发行版',
         script_content: '脚本内容',
@@ -164,12 +212,12 @@ const translations = {
       },
       target_labels: {
         url: 'URL *',
-        file: '文件路径 *',
-        dir: '目录路径 *',
-        command: '命令 *',
-        wsl_command: '命令 *',
-        script_path: '脚本路径（或使用下方内容）',
-        executable: '可执行文件 *',
+        file: '文件路径 *（支持 ${VAR} 环境变量）',
+        dir: '目录路径 *（支持 ${VAR} 环境变量）',
+        command: '命令 *（支持 ${VAR} 环境变量）',
+        wsl_command: '命令 *（支持 ${VAR} 环境变量）',
+        script_path: '脚本路径（或使用下方内容，支持 ${VAR} 环境变量）',
+        executable: '可执行文件 *（支持 ${VAR} 环境变量）',
         target: '目标 *',
       },
       target_placeholders: {
@@ -208,6 +256,7 @@ const translations = {
         hotkey_app: 'HOTKEY',
       },
       position_options: {
+        keep: '保持不变',
         left: '左侧',
         right: '右侧',
         max: '最大化',
@@ -289,10 +338,12 @@ const translations = {
       test: '测试',
       create_entry: '创建条目',
       edit: '编辑',
+      duplicate: '复制',
       delete: '删除',
       delete_selected: '删除所选',
       use_template: '使用模板',
       execute: '执行',
+      window_spy: '窗口匹配',
     },
     labels: {
       disabled: '（已禁用）',
@@ -329,6 +380,7 @@ const translations = {
       import_failed: '导入失败：{{error}}',
       entry_from_template: '已从模板创建条目',
       copy_path: '路径已复制到剪贴板',
+      window_spy_failed: '窗口匹配启动失败：{{error}}',
     },
   },
   'en-US': {
@@ -340,8 +392,10 @@ const translations = {
     },
     title_bar: {
       minimize: 'Minimize',
+      maximize: 'Maximize',
       close: 'Close',
       github: 'GitHub',
+      help: 'Help',
       about: 'About',
     },
     search: {
@@ -366,6 +420,8 @@ const translations = {
         select_all: 'Select all',
         selected_count: 'Selected {{count}} items',
         select_entry: 'Select {{name}}',
+        copy_suffix: 'Copy',
+        untitled: 'Untitled',
       },
         display: {
         title: 'Display & Sorting',
@@ -429,6 +485,50 @@ const translations = {
         wechat: 'WeChat',
       },
     },
+    help_modal: {
+      title: 'Help',
+      sections: {
+        overview: {
+          title: 'Overview',
+          body: 'Opener is an offline-capable desktop launcher that supports multiple entry types and hotkeys.',
+        },
+        features: {
+          title: 'Key Features',
+          item1: 'Supports App / URL / File / Directory / Command / WSL / SSH / Script / Shortcut / AutoHotkey',
+          item2: 'Fuzzy search with keyboard navigation',
+          item3: 'Script templates with variable substitution',
+          item4: 'Hotkey bindings (app-level and global)',
+          item5: 'Import/Export configuration',
+          item6: 'Secure storage and fully offline operation',
+        },
+        add_entry: {
+          title: 'Add Entry',
+          item1: 'Open Settings (gear button)',
+          item2: 'Go to the “Entries” tab',
+          item3: 'Click “Add Entry”',
+          item4: 'Choose a type and fill in the fields',
+        },
+        shortcuts: {
+          title: 'Keyboard',
+          item1: '↑/↓: move in search results',
+          item2: 'Enter: execute selected entry',
+          item3: 'Esc: clear search or close modal',
+        },
+        templates: {
+          title: 'Script Templates',
+          body: 'Open the “Templates” tab, click Use, fill variables, and create an entry. Variables use {{variable_name}} syntax.',
+        },
+        import_export: {
+          title: 'Import/Export',
+          body: 'Export all configuration or import from JSON with a merge strategy.',
+        },
+        requirements: {
+          title: 'Requirements',
+          body: 'AutoHotkey v2 is required on Windows for AHK entries.',
+          ahk_install: 'Install via winget: winget install AutoHotkey.AutoHotkey',
+        },
+      },
+    },
     entry: {
       modal_add: 'Add Entry',
       modal_edit: 'Edit Entry',
@@ -439,16 +539,16 @@ const translations = {
         app_name: 'App Name *',
         hotkey: 'Hotkey *',
         args: 'Arguments',
-        workdir: 'Working Directory',
+        workdir: 'Working Directory (supports ${VAR})',
         description: 'Description',
         tags: 'Tags',
         global_hotkey: 'Global Hotkey (optional)',
         icon_path: 'Icon Path',
-        hotkey_filter: 'Window Filter *',
+        hotkey_filter: 'Window Filter * (supports ${VAR})',
         hotkey_position: 'Window Position *',
         hotkey_detect_hidden: 'Detect hidden windows',
-        ssh_host: 'SSH Host *',
-        ssh_user: 'SSH User',
+        ssh_host: 'SSH Host * (supports ${VAR})',
+        ssh_user: 'SSH User (supports ${VAR})',
         ssh_port: 'SSH Port',
         wsl_distro: 'WSL Distribution',
         script_content: 'Script Content',
@@ -472,12 +572,12 @@ const translations = {
       },
       target_labels: {
         url: 'URL *',
-        file: 'File Path *',
-        dir: 'Directory Path *',
-        command: 'Command *',
-        wsl_command: 'Command *',
-        script_path: 'Script Path (or use content below)',
-        executable: 'Executable *',
+        file: 'File Path * (supports ${VAR})',
+        dir: 'Directory Path * (supports ${VAR})',
+        command: 'Command * (supports ${VAR})',
+        wsl_command: 'Command * (supports ${VAR})',
+        script_path: 'Script Path (or use content below, supports ${VAR})',
+        executable: 'Executable * (supports ${VAR})',
         target: 'Target *',
       },
       target_placeholders: {
@@ -516,6 +616,7 @@ const translations = {
         hotkey_app: 'HOTKEY',
       },
       position_options: {
+        keep: 'Keep',
         left: 'Left',
         right: 'Right',
         max: 'Maximize',
@@ -597,10 +698,12 @@ const translations = {
       test: 'Test',
       create_entry: 'Create Entry',
       edit: 'Edit',
+      duplicate: 'Duplicate',
       delete: 'Delete',
       delete_selected: 'Delete Selected',
       use_template: 'Use Template',
       execute: 'Execute',
+      window_spy: 'Window Match',
     },
     labels: {
       disabled: '(disabled)',
@@ -637,6 +740,7 @@ const translations = {
       import_failed: 'Import failed: {{error}}',
       entry_from_template: 'Entry created from template',
       copy_path: 'Path copied to clipboard',
+      window_spy_failed: 'Failed to open WindowSpy: {{error}}',
     },
   },
 };
@@ -669,7 +773,7 @@ function showToast(message, type = 'info') {
   toast.className = `${colors[type]} text-white px-4 py-3 rounded-lg shadow-lg animate-slide-down flex items-center gap-2`;
   toast.innerHTML = `
     <span>${message}</span>
-    <button class="ml-2 hover:opacity-75" onclick="this.parentElement.remove()">
+    <button class="ml-2 hover:opacity-75" data-toast-action="close">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
       </svg>
@@ -677,6 +781,10 @@ function showToast(message, type = 'info') {
   `;
 
   container.appendChild(toast);
+  const closeButton = toast.querySelector('[data-toast-action="close"]');
+  if (closeButton) {
+    closeButton.addEventListener('click', () => toast.remove());
+  }
   setTimeout(() => toast.remove(), 5000);
 }
 
@@ -684,6 +792,26 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildDuplicateName(name) {
+  const suffix = t('settings.entries.copy_suffix');
+  const baseName = (name || '').trim() || t('settings.entries.untitled');
+  if (!suffix) {
+    return `${baseName} Copy`;
+  }
+  const pattern = new RegExp(`\\s*\\(${escapeRegExp(suffix)}(?:\\s*(\\d+))?\\)\\s*$`);
+  const match = baseName.match(pattern);
+  if (!match) {
+    return `${baseName} (${suffix})`;
+  }
+  const count = match[1] ? Number(match[1]) + 1 : 2;
+  const stripped = baseName.replace(pattern, '').trim();
+  return `${stripped} (${suffix} ${count})`;
 }
 
 async function openExternalLink(url) {
@@ -1313,17 +1441,22 @@ function renderEntriesList(entries) {
         <div class="text-sm text-gray-500 truncate">${escapeHtml(entry.target)}</div>
       </div>
       <div class="flex items-center gap-1">
-        <button class="btn-ghost p-1.5 rounded text-emerald-400 hover:text-emerald-300" onclick="testEntry('${entry.id}')" title="${t('actions.test')}">
+        <button class="btn-ghost p-1.5 rounded text-emerald-400 hover:text-emerald-300" data-entry-action="test" title="${t('actions.test')}">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z"/>
           </svg>
         </button>
-        <button class="btn-ghost p-1.5 rounded" onclick="editEntry('${entry.id}')" title="${t('actions.edit')}">
+        <button class="btn-ghost p-1.5 rounded" data-entry-action="edit" title="${t('actions.edit')}">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
           </svg>
         </button>
-        <button class="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300" onclick="confirmDeleteEntry('${entry.id}')" title="${t('actions.delete')}">
+        <button class="btn-ghost p-1.5 rounded text-sky-400 hover:text-sky-300" data-entry-action="duplicate" title="${t('actions.duplicate')}">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/>
+          </svg>
+        </button>
+        <button class="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300" data-entry-action="delete" title="${t('actions.delete')}">
           <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
           </svg>
@@ -1338,6 +1471,25 @@ function renderEntriesList(entries) {
       e.stopPropagation();
       const entryId = checkbox.dataset.id;
       toggleEntrySelection(entryId, checkbox.checked);
+    });
+  });
+
+  container.querySelectorAll('[data-entry-action]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = button.dataset.entryAction;
+      const entryId = button.closest('.entry-row')?.dataset.id;
+      if (!entryId) return;
+
+      if (action === 'test') {
+        testEntry(entryId);
+      } else if (action === 'edit') {
+        editEntry(entryId);
+      } else if (action === 'duplicate') {
+        duplicateEntry(entryId);
+      } else if (action === 'delete') {
+        confirmDeleteEntry(entryId);
+      }
     });
   });
 
@@ -1367,25 +1519,25 @@ function renderTemplatesList(templates) {
   }
 
   container.innerHTML = templates.map(template => `
-    <div class="card p-3">
+    <div class="card p-3" data-template-id="${template.id}">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2">
           <span class="font-medium">${escapeHtml(template.name)}</span>
           <span class="type-badge script">${getTemplateLanguageLabel(template.language)}</span>
         </div>
         <div class="flex items-center gap-1">
-          <button class="btn-ghost p-1.5 rounded text-green-400" onclick="useTemplate('${template.id}')" title="${t('actions.use_template')}">
+          <button class="btn-ghost p-1.5 rounded text-green-400" data-template-action="use" title="${t('actions.use_template')}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
           </button>
-          <button class="btn-ghost p-1.5 rounded" onclick="editTemplate('${template.id}')" title="${t('actions.edit')}">
+          <button class="btn-ghost p-1.5 rounded" data-template-action="edit" title="${t('actions.edit')}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
             </svg>
           </button>
-          <button class="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300" onclick="confirmDeleteTemplate('${template.id}')" title="${t('actions.delete')}">
+          <button class="btn-ghost p-1.5 rounded text-red-400 hover:text-red-300" data-template-action="delete" title="${t('actions.delete')}">
             <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
             </svg>
@@ -1401,6 +1553,23 @@ function renderTemplatesList(templates) {
       ` : ''}
     </div>
   `).join('');
+
+  container.querySelectorAll('[data-template-action]').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const action = button.dataset.templateAction;
+      const templateId = button.closest('[data-template-id]')?.dataset.templateId;
+      if (!templateId) return;
+
+      if (action === 'use') {
+        useTemplate(templateId);
+      } else if (action === 'edit') {
+        editTemplate(templateId);
+      } else if (action === 'delete') {
+        confirmDeleteTemplate(templateId);
+      }
+    });
+  });
 }
 
 function updateSettingsUI(settings) {
@@ -1588,6 +1757,15 @@ function closeAboutModal() {
   document.getElementById('about-modal').classList.add('hidden');
 }
 
+function showHelpModal() {
+  closeAllModals();
+  document.getElementById('help-modal').classList.remove('hidden');
+}
+
+function closeHelpModal() {
+  document.getElementById('help-modal').classList.add('hidden');
+}
+
 function switchSettingsTab(tabName) {
   state.currentTab = tabName;
 
@@ -1628,8 +1806,16 @@ function showEditEntryModal(entry) {
   document.getElementById('entry-id').value = entry.id;
   document.getElementById('entry-name').value = entry.name;
   document.getElementById('entry-type').value = entry.type;
-  document.getElementById('entry-target').value = entry.target;
-  document.getElementById('entry-args').value = entry.args || '';
+  const targetInput = document.getElementById('entry-target');
+  const argsInput = document.getElementById('entry-args');
+  if (entry.type === 'hotkey_app') {
+    const { executable, args } = splitHotkeyTarget(entry.target || '');
+    targetInput.value = executable || entry.target || '';
+    argsInput.value = args || entry.args || '';
+  } else {
+    targetInput.value = entry.target;
+    argsInput.value = entry.args || '';
+  }
   document.getElementById('entry-workdir').value = entry.workdir || '';
   document.getElementById('entry-description').value = entry.description || '';
   document.getElementById('entry-tags').value = entry.tags || '';
@@ -1643,7 +1829,7 @@ function showEditEntryModal(entry) {
   document.getElementById('entry-hotkey-filter').value = entry.hotkey_filter || '';
   const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
   if (hotkeyPositionInput) {
-    hotkeyPositionInput.value = entry.hotkey_position || 'max';
+    hotkeyPositionInput.value = entry.hotkey_position || 'keep';
     hotkeyPositionInput.dataset.touched = 'true';
   }
   const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
@@ -1733,7 +1919,7 @@ function updateEntryFormFields() {
   scriptFields.classList.toggle('hidden', type !== 'script' && type !== 'ahk');
   hotkeyAppFields.classList.toggle('hidden', type !== 'hotkey_app');
   targetField.classList.toggle('hidden', type === 'ssh');
-  argsField.classList.toggle('hidden', type === 'url' || type === 'ssh' || type === 'hotkey_app');
+  argsField.classList.toggle('hidden', type === 'url' || type === 'ssh');
 
   // Update target label and placeholder
   const targetLabel = targetField.querySelector('label');
@@ -1787,7 +1973,7 @@ function updateEntryFormFields() {
 
     const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
     if (hotkeyPositionInput && hotkeyPositionInput.dataset.touched !== 'true') {
-      hotkeyPositionInput.value = 'max';
+      hotkeyPositionInput.value = 'keep';
     }
     const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
     if (detectHiddenInput && detectHiddenInput.dataset.touched !== 'true') {
@@ -1807,6 +1993,42 @@ function buildSshTarget(host, user, port) {
   const userPrefix = user ? `${user}@` : '';
   const portSuffix = port && port !== 22 ? `:${port}` : '';
   return `${userPrefix}${host}${portSuffix}`;
+}
+
+function splitHotkeyTarget(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return { executable: '', args: '' };
+  }
+
+  const firstChar = trimmed[0];
+  if (firstChar === '"' || firstChar === '\'') {
+    const endIndex = trimmed.indexOf(firstChar, 1);
+    if (endIndex > 0) {
+      const executable = trimmed.slice(1, endIndex);
+      const args = trimmed.slice(endIndex + 1).trim();
+      return { executable, args };
+    }
+  }
+
+  const lower = trimmed.toLowerCase();
+  const exeIndex = lower.lastIndexOf('.exe');
+  if (exeIndex !== -1) {
+    const endIndex = exeIndex + 4;
+    const executable = trimmed.slice(0, endIndex).trim();
+    const args = trimmed.slice(endIndex).trim();
+    return { executable, args };
+  }
+
+  const firstSpace = trimmed.search(/\s/);
+  if (firstSpace === -1) {
+    return { executable: trimmed, args: '' };
+  }
+
+  return {
+    executable: trimmed.slice(0, firstSpace).trim(),
+    args: trimmed.slice(firstSpace).trim(),
+  };
 }
 
 function buildEntryInputFromForm() {
@@ -1834,7 +2056,16 @@ function buildEntryInputFromForm() {
     target = buildSshTarget(sshHost, sshUser, sshPort);
   }
 
-  const argsValue = type === 'hotkey_app' ? '' : document.getElementById('entry-args').value;
+  const rawArgsValue = document.getElementById('entry-args').value;
+  const trimmedArgsValue = rawArgsValue.trim();
+  let argsValue = rawArgsValue;
+
+  if (type === 'hotkey_app') {
+    const executable = targetInput.value.trim();
+    target = trimmedArgsValue ? `${executable} ${trimmedArgsValue}` : executable;
+    argsValue = '';
+  }
+
   const input = {
     name: document.getElementById('entry-name').value,
     type: type,
@@ -1861,7 +2092,7 @@ function buildEntryInputFromForm() {
 
   if (type === 'hotkey_app') {
     input.hotkey_filter = document.getElementById('entry-hotkey-filter').value || null;
-    input.hotkey_position = document.getElementById('entry-hotkey-position').value || 'max';
+    input.hotkey_position = document.getElementById('entry-hotkey-position').value || 'keep';
     input.hotkey_detect_hidden = document.getElementById('entry-hotkey-detect-hidden').checked;
   }
 
@@ -1991,7 +2222,7 @@ function renderTemplateVariables(variables) {
     <div class="card p-3 space-y-2" data-index="${i}">
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium">${t('template.variable_label', { index: i + 1 })}</span>
-        <button type="button" class="text-red-400 hover:text-red-300 text-sm" onclick="removeTemplateVariable(${i})">${t('template.remove_variable')}</button>
+        <button type="button" class="text-red-400 hover:text-red-300 text-sm" data-template-variable-action="remove">${t('template.remove_variable')}</button>
       </div>
       <div class="grid grid-cols-2 gap-2">
         <input type="text" class="input var-name" value="${escapeHtml(v.name)}" placeholder="${t('template.placeholders.var_name')}" required>
@@ -2013,7 +2244,23 @@ function renderTemplateVariables(variables) {
   `).join('');
 }
 
-window.removeTemplateVariable = function(index) {
+function setupTemplateVariableActions() {
+  const container = document.getElementById('template-variables');
+  if (!container || container.dataset.actionsBound === 'true') return;
+
+  container.dataset.actionsBound = 'true';
+  container.addEventListener('click', (e) => {
+    const actionButton = e.target.closest('[data-template-variable-action]');
+    if (!actionButton) return;
+    if (actionButton.dataset.templateVariableAction !== 'remove') return;
+
+    const item = actionButton.closest('[data-index]');
+    if (!item) return;
+    removeTemplateVariable(item.dataset.index);
+  });
+}
+
+function removeTemplateVariable(index) {
   const container = document.getElementById('template-variables');
   const item = container.querySelector(`[data-index="${index}"]`);
   if (item) item.remove();
@@ -2033,7 +2280,7 @@ function addTemplateVariable() {
     <div class="card p-3 space-y-2" data-index="${index}">
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium">${t('template.variable_label', { index: index + 1 })}</span>
-        <button type="button" class="text-red-400 hover:text-red-300 text-sm" onclick="removeTemplateVariable(${index})">${t('template.remove_variable')}</button>
+        <button type="button" class="text-red-400 hover:text-red-300 text-sm" data-template-variable-action="remove">${t('template.remove_variable')}</button>
       </div>
       <div class="grid grid-cols-2 gap-2">
         <input type="text" class="input var-name" placeholder="${t('template.placeholders.var_name')}" required>
@@ -2212,26 +2459,60 @@ async function handleUseTemplateFormSubmit(e) {
 function closeAllModals() {
   document.getElementById('settings-modal').classList.add('hidden');
   document.getElementById('about-modal').classList.add('hidden');
+  document.getElementById('help-modal').classList.add('hidden');
   document.getElementById('entry-modal').classList.add('hidden');
   document.getElementById('template-modal').classList.add('hidden');
   document.getElementById('use-template-modal').classList.add('hidden');
   document.getElementById('confirm-modal').classList.add('hidden');
 }
 
-// ==================== Global Functions (for inline onclick) ====================
+// ==================== Shared Actions ====================
 
-window.editEntry = async function(id) {
+async function duplicateEntry(id) {
+  const entry = state.entries.find(e => e.id === id);
+  if (!entry) return;
+
+  const input = {
+    name: buildDuplicateName(entry.name),
+    type: entry.type,
+    target: entry.target,
+    args: entry.args ?? null,
+    workdir: entry.workdir ?? null,
+    icon_path: entry.icon_path ?? null,
+    tags: entry.tags ?? null,
+    description: entry.description ?? null,
+    enabled: entry.enabled,
+    confirm_before_run: entry.confirm_before_run ?? null,
+    show_terminal: entry.show_terminal ?? null,
+    wsl_distro: entry.wsl_distro ?? null,
+    ssh_host: entry.ssh_host ?? null,
+    ssh_user: entry.ssh_user ?? null,
+    ssh_port: entry.ssh_port ?? null,
+    ssh_key_id: entry.ssh_key_id ?? null,
+    env_vars: entry.env_vars ?? null,
+    hotkey_filter: entry.hotkey_filter ?? null,
+    hotkey_position: entry.hotkey_position ?? null,
+    hotkey_detect_hidden: entry.hotkey_detect_hidden ?? null,
+  };
+
+  try {
+    const newEntry = await createEntry(input);
+    await loadAllData();
+    renderEntriesList(state.entries);
+    showEditEntryModal(newEntry);
+  } catch (error) {
+    // Error already shown via toast
+  }
+}
+
+async function editEntry(id) {
   const entry = state.entries.find(e => e.id === id);
   if (entry) {
     showEditEntryModal(entry);
   }
-};
+}
 
-window.testEntry = function(id) {
-  testEntry(id);
-};
-
-window.confirmDeleteEntry = function(id) {
+function confirmDeleteEntry(id) {
   const entry = state.entries.find(e => e.id === id);
   if (entry) {
     showConfirmModal(
@@ -2245,16 +2526,16 @@ window.confirmDeleteEntry = function(id) {
       }
     );
   }
-};
+}
 
-window.editTemplate = async function(id) {
+async function editTemplate(id) {
   const template = state.templates.find(t => t.id === id);
   if (template) {
     showEditTemplateModal(template);
   }
-};
+}
 
-window.confirmDeleteTemplate = function(id) {
+function confirmDeleteTemplate(id) {
   const template = state.templates.find(t => t.id === id);
   if (template) {
     showConfirmModal(
@@ -2268,14 +2549,21 @@ window.confirmDeleteTemplate = function(id) {
       }
     );
   }
-};
+}
 
-window.useTemplate = function(id) {
+function useTemplate(id) {
   const template = state.templates.find(t => t.id === id);
   if (template) {
     showUseTemplateModal(template);
   }
-};
+}
+
+window.editEntry = editEntry;
+window.testEntry = testEntry;
+window.confirmDeleteEntry = confirmDeleteEntry;
+window.editTemplate = editTemplate;
+window.confirmDeleteTemplate = confirmDeleteTemplate;
+window.useTemplate = useTemplate;
 
 // ==================== Context Menu ====================
 
@@ -2441,6 +2729,18 @@ async function handleSettingsChange() {
   }
 }
 
+// ==================== Window Spy ====================
+
+async function handleOpenWindowSpy() {
+  try {
+    await invoke('open_window_spy');
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.error('Failed to open WindowSpy:', error);
+    showToast(t('toasts.window_spy_failed', { error: message }), 'error');
+  }
+}
+
 // ==================== Browse Dialogs ====================
 
 async function handleBrowseTarget() {
@@ -2547,6 +2847,10 @@ async function init() {
     invoke('minimize_window');
   });
 
+  document.getElementById('btn-maximize').addEventListener('click', () => {
+    invoke('toggle_maximize_window');
+  });
+
   document.getElementById('btn-close').addEventListener('click', () => {
     invoke('close_window');
   });
@@ -2557,6 +2861,8 @@ async function init() {
 
   document.getElementById('btn-about').addEventListener('click', showAboutModal);
   document.getElementById('btn-close-about').addEventListener('click', closeAboutModal);
+  document.getElementById('btn-help').addEventListener('click', showHelpModal);
+  document.getElementById('btn-close-help').addEventListener('click', closeHelpModal);
 
   // Settings modal
   document.getElementById('btn-settings').addEventListener('click', showSettingsModal);
@@ -2602,6 +2908,7 @@ async function init() {
   document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
     e.target.dataset.touched = 'true';
   });
+  document.getElementById('btn-window-spy').addEventListener('click', handleOpenWindowSpy);
   document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
   document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
   document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
@@ -2621,6 +2928,7 @@ async function init() {
   document.getElementById('btn-cancel-template').addEventListener('click', closeTemplateModal);
   document.getElementById('template-form').addEventListener('submit', handleTemplateFormSubmit);
   document.getElementById('btn-add-variable').addEventListener('click', addTemplateVariable);
+  setupTemplateVariableActions();
 
   // Use template modal
   document.getElementById('btn-close-use-template').addEventListener('click', closeUseTemplateModal);
@@ -2648,12 +2956,17 @@ async function init() {
   document.getElementById('setting-auto-launch').addEventListener('change', handleSettingsChange);
   document.getElementById('setting-language').addEventListener('change', handleSettingsChange);
 
-  // Close modals on Escape
+  // Block Alt+Space from opening the system menu inside the app
   document.addEventListener('keydown', (e) => {
+    if (e.altKey && (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar')) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
     if (e.key === 'Escape') {
       closeAllModals();
     }
-  });
+  }, true);
 
   // Close modals on overlay click
   document.querySelectorAll('.modal-overlay').forEach(overlay => {

@@ -6,6 +6,10 @@ use crate::models::*;
 use crate::{executor, security};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+#[cfg(target_os = "windows")]
+use std::path::Path;
+#[cfg(target_os = "windows")]
+use std::process::Command;
 use std::sync::Mutex;
 use tauri::{AppHandle, State, Window};
 use tauri_plugin_autostart::ManagerExt;
@@ -209,9 +213,10 @@ pub async fn execute_entry(
         db.get_entry(&id)?
     };
 
-    let preview = executor::get_execution_preview(&entry);
+    let resolved = executor::resolve_entry_env(&entry);
+    let preview = executor::get_execution_preview(&resolved);
     let execution_result = tauri::async_runtime::spawn_blocking(move || {
-        executor::execute_entry(&entry, ahk_path.as_deref())
+        executor::execute_entry(&resolved, ahk_path.as_deref())
     })
     .await
     .map_err(|error| CommandError {
@@ -233,9 +238,10 @@ pub async fn execute_entry_input(
     ahk_path: Option<String>,
 ) -> CommandResult<String> {
     let entry = entry_from_input(input);
-    let preview = executor::get_execution_preview(&entry);
+    let resolved = executor::resolve_entry_env(&entry);
+    let preview = executor::get_execution_preview(&resolved);
     let execution_result = tauri::async_runtime::spawn_blocking(move || {
-        executor::execute_entry(&entry, ahk_path.as_deref())
+        executor::execute_entry(&resolved, ahk_path.as_deref())
     })
     .await
     .map_err(|error| CommandError {
@@ -581,6 +587,28 @@ pub fn minimize_window(window: Window) -> CommandResult<()> {
 }
 
 #[tauri::command]
+pub fn toggle_maximize_window(window: Window) -> CommandResult<()> {
+    let is_maximized = window.is_maximized().map_err(|e| CommandError {
+        message: e.to_string(),
+        code: "WINDOW_ERROR".to_string(),
+    })?;
+
+    if is_maximized {
+        window.unmaximize().map_err(|e| CommandError {
+            message: e.to_string(),
+            code: "WINDOW_ERROR".to_string(),
+        })?;
+    } else {
+        window.maximize().map_err(|e| CommandError {
+            message: e.to_string(),
+            code: "WINDOW_ERROR".to_string(),
+        })?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub fn close_window(window: Window) -> CommandResult<()> {
     window.hide().map_err(|e| CommandError {
         message: e.to_string(),
@@ -617,6 +645,42 @@ pub async fn save_file_dialog(app: tauri::AppHandle, default_name: String) -> Co
         .blocking_save_file();
 
     Ok(file.map(|f| f.to_string()))
+}
+
+// ==================== Window Spy ====================
+
+#[tauri::command]
+pub fn open_window_spy() -> CommandResult<()> {
+    #[cfg(target_os = "windows")]
+    {
+        let ahk_exe = Path::new(r"C:\Program Files\AutoHotkey\v2\AutoHotkey.exe");
+        let window_spy = Path::new(r"C:\Program Files\AutoHotkey\WindowSpy.ahk");
+
+        if !ahk_exe.exists() {
+            return Err(CommandError {
+                message: format!("AutoHotkey.exe not found at {}", ahk_exe.display()),
+                code: "WINDOW_SPY_MISSING".to_string(),
+            });
+        }
+
+        if !window_spy.exists() {
+            return Err(CommandError {
+                message: format!("WindowSpy.ahk not found at {}", window_spy.display()),
+                code: "WINDOW_SPY_MISSING".to_string(),
+            });
+        }
+
+        Command::new(ahk_exe).arg(window_spy).spawn()?;
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        Err(CommandError {
+            message: "WindowSpy is only available on Windows.".to_string(),
+            code: "UNSUPPORTED_OS".to_string(),
+        })
+    }
 }
 
 // ==================== Security Commands ====================

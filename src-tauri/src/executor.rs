@@ -377,7 +377,7 @@ fn execute_hotkey_app(entry: &Entry) -> ExecutorResult<()> {
     let position = entry
         .hotkey_position
         .as_deref()
-        .unwrap_or("max")
+        .unwrap_or("keep")
         .to_lowercase();
 
     if let Some(hwnd) = find_window(&filter, detect_hidden) {
@@ -386,17 +386,19 @@ fn execute_hotkey_app(entry: &Entry) -> ExecutorResult<()> {
         return Ok(());
     }
 
-    let target_path = Path::new(&entry.target);
+    let (target, inline_args) = split_hotkey_target(&entry.target);
+    let target_args = inline_args.or_else(|| entry.args.clone());
+    let target_path = Path::new(&target);
     let executable = if target_path.exists() {
-        entry.target.clone()
-    } else if let Ok(resolved) = which::which(&entry.target) {
+        target.clone()
+    } else if let Ok(resolved) = which::which(&target) {
         resolved.to_string_lossy().to_string()
     } else {
-        return Err(ExecutorError::TargetNotFound(entry.target.clone()));
+        return Err(ExecutorError::TargetNotFound(target.clone()));
     };
 
     let mut cmd = Command::new(&executable);
-    if let Some(ref args) = entry.args {
+    if let Some(ref args) = target_args {
         let args_vec: Vec<&str> = args.split_whitespace().collect();
         cmd.args(&args_vec);
     }
@@ -434,6 +436,87 @@ fn execute_hotkey_app(_entry: &Entry) -> ExecutorResult<()> {
 }
 
 #[cfg(windows)]
+fn strip_surrounding_quotes(value: &str) -> String {
+    let trimmed = value.trim();
+    if trimmed.len() >= 2 {
+        let first = trimmed.chars().next().unwrap_or('"');
+        let last = trimmed.chars().last().unwrap_or('"');
+        if (first == '"' && last == '"') || (first == '\'' && last == '\'') {
+            return trimmed[1..trimmed.len() - 1].to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
+#[cfg(windows)]
+fn is_executable_candidate(value: &str) -> bool {
+    let candidate = strip_surrounding_quotes(value);
+    if candidate.is_empty() {
+        return false;
+    }
+    if Path::new(&candidate).exists() {
+        return true;
+    }
+    which::which(candidate).is_ok()
+}
+
+#[cfg(windows)]
+fn split_hotkey_target(value: &str) -> (String, Option<String>) {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return (String::new(), None);
+    }
+
+    let first_char = trimmed.chars().next().unwrap_or('"');
+    if first_char == '"' || first_char == '\'' {
+        if let Some(end_offset) = trimmed[1..].find(first_char) {
+            let end = end_offset + 1;
+            let executable = trimmed[1..end].to_string();
+            let rest = trimmed[end + 1..].trim();
+            return (
+                executable,
+                if rest.is_empty() { None } else { Some(rest.to_string()) },
+            );
+        }
+    }
+
+    let mut best_end = None;
+    let mut best_exec = None;
+    for (idx, ch) in trimmed.char_indices() {
+        if ch.is_whitespace() {
+            let candidate = trimmed[..idx].trim();
+            if is_executable_candidate(candidate) {
+                best_end = Some(idx);
+                best_exec = Some(strip_surrounding_quotes(candidate));
+            }
+        }
+    }
+
+    if let Some(exec) = best_exec {
+        let rest = trimmed[best_end.unwrap_or(trimmed.len())..].trim();
+        return (
+            exec,
+            if rest.is_empty() { None } else { Some(rest.to_string()) },
+        );
+    }
+
+    if is_executable_candidate(trimmed) {
+        return (strip_surrounding_quotes(trimmed), None);
+    }
+
+    if let Some(pos) = trimmed.find(|c: char| c.is_whitespace()) {
+        let exec = strip_surrounding_quotes(trimmed[..pos].trim());
+        let rest = trimmed[pos..].trim();
+        return (
+            exec,
+            if rest.is_empty() { None } else { Some(rest.to_string()) },
+        );
+    }
+
+    (strip_surrounding_quotes(trimmed), None)
+}
+
+#[cfg(windows)]
 enum WindowFilter {
     Title(String),
     Exe(String),
@@ -456,13 +539,14 @@ fn build_window_filter(entry: &Entry) -> WindowFilter {
         return WindowFilter::Title(raw.to_string());
     }
 
-    let resolved = which::which(&entry.target).ok();
+    let (target, _) = split_hotkey_target(&entry.target);
+    let resolved = which::which(&target).ok();
     let exe_name = resolved
         .as_ref()
         .and_then(|path| path.file_name())
-        .or_else(|| Path::new(&entry.target).file_name())
+        .or_else(|| Path::new(&target).file_name())
         .map(|name| name.to_string_lossy().to_string())
-        .unwrap_or_else(|| entry.target.clone());
+        .unwrap_or_else(|| target);
     WindowFilter::Exe(exe_name)
 }
 
@@ -631,6 +715,10 @@ fn apply_position(hwnd: HWND, position: &str) -> ExecutorResult<()> {
             "right" => {
                 MoveWindow(hwnd, left + width / 2, top, width / 2, height, 1);
             }
+            "max" => {
+                ShowWindow(hwnd, SW_MAXIMIZE);
+            }
+            "keep" => {}
             _ => {
                 ShowWindow(hwnd, SW_MAXIMIZE);
             }
@@ -760,6 +848,71 @@ pub fn render_template(template: &str, variables: &std::collections::HashMap<Str
         result = result.replace(&placeholder, value);
     }
     result
+}
+
+fn expand_env_placeholders(value: &str) -> String {
+    let mut result = String::with_capacity(value.len());
+    let mut rest = value;
+
+    loop {
+        let Some(start) = rest.find("${") else {
+            result.push_str(rest);
+            break;
+        };
+
+        result.push_str(&rest[..start]);
+        let after = &rest[start + 2..];
+        let Some(end) = after.find('}') else {
+            result.push_str("${");
+            result.push_str(after);
+            break;
+        };
+
+        let name = &after[..end];
+        if name.is_empty() {
+            result.push_str("${}");
+        } else if let Ok(value) = std::env::var(name) {
+            result.push_str(&value);
+        } else {
+            result.push_str("${");
+            result.push_str(name);
+            result.push('}');
+        }
+
+        rest = &after[end + 1..];
+    }
+
+    result
+}
+
+fn expand_optional(value: &Option<String>) -> Option<String> {
+    value.as_ref().map(|val| expand_env_placeholders(val))
+}
+
+pub fn resolve_entry_env(entry: &Entry) -> Entry {
+    let mut resolved = entry.clone();
+    let expand_target = matches!(
+        entry.entry_type,
+        EntryType::App
+            | EntryType::File
+            | EntryType::Dir
+            | EntryType::Cmd
+            | EntryType::Wsl
+            | EntryType::Script
+            | EntryType::Shortcut
+            | EntryType::Ahk
+            | EntryType::HotkeyApp
+    );
+
+    if expand_target {
+        resolved.target = expand_env_placeholders(&entry.target);
+    }
+
+    resolved.workdir = expand_optional(&entry.workdir);
+    resolved.ssh_host = expand_optional(&entry.ssh_host);
+    resolved.ssh_user = expand_optional(&entry.ssh_user);
+    resolved.hotkey_filter = expand_optional(&entry.hotkey_filter);
+    resolved
 }
 
 /// Get execution preview (what will be run)

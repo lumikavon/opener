@@ -185,10 +185,12 @@ fn main() {
             commands::import_data,
             // Utility commands
             commands::minimize_window,
+            commands::toggle_maximize_window,
             commands::close_window,
             commands::open_file_dialog,
             commands::open_directory_dialog,
             commands::save_file_dialog,
+            commands::open_window_spy,
             commands::store_secure_credential,
             commands::get_secure_credential,
             commands::delete_secure_credential,
