@@ -1508,6 +1508,9 @@ function renderEntriesList(entries) {
 
 function renderTemplatesList(templates) {
   const container = document.getElementById('templates-list');
+  if (!container) {
+    return;
+  }
 
   if (templates.length === 0) {
     container.innerHTML = `
@@ -2923,11 +2926,26 @@ async function init() {
   });
 
   // Template modal
-  document.getElementById('btn-add-template').addEventListener('click', showAddTemplateModal);
-  document.getElementById('btn-close-template-modal').addEventListener('click', closeTemplateModal);
-  document.getElementById('btn-cancel-template').addEventListener('click', closeTemplateModal);
-  document.getElementById('template-form').addEventListener('submit', handleTemplateFormSubmit);
-  document.getElementById('btn-add-variable').addEventListener('click', addTemplateVariable);
+  const addTemplateButton = document.getElementById('btn-add-template');
+  if (addTemplateButton) {
+    addTemplateButton.addEventListener('click', showAddTemplateModal);
+  }
+  const closeTemplateButton = document.getElementById('btn-close-template-modal');
+  if (closeTemplateButton) {
+    closeTemplateButton.addEventListener('click', closeTemplateModal);
+  }
+  const cancelTemplateButton = document.getElementById('btn-cancel-template');
+  if (cancelTemplateButton) {
+    cancelTemplateButton.addEventListener('click', closeTemplateModal);
+  }
+  const templateForm = document.getElementById('template-form');
+  if (templateForm) {
+    templateForm.addEventListener('submit', handleTemplateFormSubmit);
+  }
+  const addVariableButton = document.getElementById('btn-add-variable');
+  if (addVariableButton) {
+    addVariableButton.addEventListener('click', addTemplateVariable);
+  }
   setupTemplateVariableActions();
 
   // Use template modal

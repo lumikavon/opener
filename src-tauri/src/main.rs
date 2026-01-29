@@ -58,6 +58,38 @@ fn hide_main_window(app: &tauri::AppHandle) {
     }
 }
 
+#[cfg(windows)]
+fn remove_system_menu(window: &tauri::WebviewWindow) {
+    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+    use std::ptr;
+    use winapi::shared::windef::HWND;
+    use winapi::um::winuser::{
+        GetWindowLongW, SetWindowLongW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOMOVE,
+        SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, WS_SYSMENU,
+    };
+
+    let hwnd = match window.window_handle().ok().map(|handle| handle.as_raw()) {
+        Some(RawWindowHandle::Win32(handle)) => handle.hwnd.get() as HWND,
+        _ => return,
+    };
+
+    unsafe {
+        let style = GetWindowLongW(hwnd, GWL_STYLE);
+        if style & (WS_SYSMENU as i32) != 0 {
+            SetWindowLongW(hwnd, GWL_STYLE, style & !(WS_SYSMENU as i32));
+            SetWindowPos(
+                hwnd,
+                ptr::null_mut(),
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER,
+            );
+        }
+    }
+}
+
 fn setup_tray(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text(TRAY_SHOW_ID, labels.show)
@@ -127,6 +159,8 @@ fn main() {
             setup_tray(&app_handle, tray_label_set)?;
             if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW_LABEL) {
                 let window_clone = window.clone();
+                #[cfg(windows)]
+                remove_system_menu(&window);
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         let _ = window_clone.hide();

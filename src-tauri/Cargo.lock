@@ -2449,6 +2449,7 @@ dependencies = [
  "lnk",
  "log",
  "open",
+ "raw-window-handle",
  "rusqlite",
  "serde",
  "serde_json",
