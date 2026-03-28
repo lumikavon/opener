@@ -569,7 +569,15 @@
 
             <!-- Script-specific fields -->
             <div id="field-script" class="hidden">
-              <label class="label" data-i18n="entry.fields.script_content">Script Content</label>
+              <div class="flex items-center gap-2 mb-1">
+                <label class="label mb-0 flex-1" data-i18n="entry.fields.script_content">Script Content</label>
+                <select id="entry-script-type" class="input w-auto text-sm px-2 py-1">
+                  <option value="powershell">PowerShell</option>
+                  <option value="bash">Bash</option>
+                  <option value="python">Python</option>
+                  <option value="cmd">CMD</option>
+                </select>
+              </div>
               <textarea id="entry-script-content" class="input h-32 font-mono text-sm" placeholder="Enter script content..." data-i18n-placeholder="entry.placeholders.script_content"></textarea>
             </div>
 

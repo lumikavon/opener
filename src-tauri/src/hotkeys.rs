@@ -23,20 +23,23 @@ pub fn register_hotkey<R: Runtime>(app: &AppHandle<R>, hotkey: &Hotkey) -> Resul
     let accelerator_for_register = accelerator.clone();
 
     app.global_shortcut()
-        .on_shortcut(accelerator_for_register.as_str(), move |app_handle, _shortcut, event| {
-            if event.state != ShortcutState::Pressed {
-                return;
-            }
+        .on_shortcut(
+            accelerator_for_register.as_str(),
+            move |app_handle, _shortcut, event| {
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
 
-            let payload = HotkeyTriggeredPayload {
-                entry_id: entry_id.clone(),
-                accelerator: accelerator.clone(),
-            };
+                let payload = HotkeyTriggeredPayload {
+                    entry_id: entry_id.clone(),
+                    accelerator: accelerator.clone(),
+                };
 
-            if let Err(error) = app_handle.emit("hotkey-triggered", payload) {
-                log::error!("Failed to emit hotkey-triggered event: {}", error);
-            }
-        })
+                if let Err(error) = app_handle.emit("hotkey-triggered", payload) {
+                    log::error!("Failed to emit hotkey-triggered event: {}", error);
+                }
+            },
+        )
         .map_err(|error| error.to_string())
 }
 
@@ -75,7 +78,10 @@ fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-pub fn register_app_hotkey<R: Runtime>(app: &AppHandle<R>, accelerator: &str) -> Result<(), String> {
+pub fn register_app_hotkey<R: Runtime>(
+    app: &AppHandle<R>,
+    accelerator: &str,
+) -> Result<(), String> {
     let trimmed = accelerator.trim();
     if trimmed.is_empty() {
         return Ok(());
@@ -83,17 +89,23 @@ pub fn register_app_hotkey<R: Runtime>(app: &AppHandle<R>, accelerator: &str) ->
 
     let accelerator_for_register = trimmed.to_string();
     app.global_shortcut()
-        .on_shortcut(accelerator_for_register.as_str(), move |app_handle, _shortcut, event| {
-            if event.state != ShortcutState::Pressed {
-                return;
-            }
+        .on_shortcut(
+            accelerator_for_register.as_str(),
+            move |app_handle, _shortcut, event| {
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
 
-            toggle_main_window(app_handle);
-        })
+                toggle_main_window(app_handle);
+            },
+        )
         .map_err(|error| error.to_string())
 }
 
-pub fn unregister_app_hotkey<R: Runtime>(app: &AppHandle<R>, accelerator: &str) -> Result<(), String> {
+pub fn unregister_app_hotkey<R: Runtime>(
+    app: &AppHandle<R>,
+    accelerator: &str,
+) -> Result<(), String> {
     let trimmed = accelerator.trim();
     if trimmed.is_empty() {
         return Ok(());

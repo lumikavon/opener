@@ -10,12 +10,12 @@ mod hotkeys;
 mod models;
 mod security;
 
-use tauri::Manager;
-use tauri::menu::MenuBuilder;
-use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use commands::AppState;
 use models::Settings;
+use tauri::menu::MenuBuilder;
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+use tauri::Manager;
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray_show";
@@ -109,7 +109,11 @@ fn setup_tray(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                ..
+            } = event
+            {
                 show_main_window(tray.app_handle());
             }
         });
@@ -131,9 +135,15 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            None,
+        ))
         .setup(|app| {
-            let app_data_dir = app.path().app_data_dir().expect("Failed to get app data directory");
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .expect("Failed to get app data directory");
             std::fs::create_dir_all(&app_data_dir).expect("Failed to create app data directory");
 
             let db_path = app_data_dir.join("opener.db");
@@ -151,7 +161,9 @@ fn main() {
                 Vec::new()
             });
 
-            app.manage(AppState { db: std::sync::Mutex::new(db) });
+            app.manage(AppState {
+                db: std::sync::Mutex::new(db),
+            });
 
             hotkeys::register_all_hotkeys(&app.handle(), &hotkeys);
 
@@ -170,7 +182,11 @@ fn main() {
             }
 
             if let Err(error) = hotkeys::register_app_hotkey(&app_handle, &settings.app_hotkey) {
-                log::warn!("Failed to register app hotkey {}: {}", settings.app_hotkey, error);
+                log::warn!(
+                    "Failed to register app hotkey {}: {}",
+                    settings.app_hotkey,
+                    error
+                );
             }
 
             let autolaunch = app.autolaunch();
@@ -224,6 +240,8 @@ fn main() {
             commands::open_file_dialog,
             commands::open_directory_dialog,
             commands::save_file_dialog,
+            commands::write_text_file,
+            commands::read_text_file,
             commands::open_window_spy,
             commands::store_secure_credential,
             commands::get_secure_credential,

@@ -20,8 +20,8 @@ pub type SecurityResult<T> = Result<T, SecurityError>;
 
 /// Store a credential securely using the system keychain
 pub fn store_credential(key: &str, value: &str) -> SecurityResult<()> {
-    let entry = KeyringEntry::new(SERVICE_NAME, key)
-        .map_err(|e| SecurityError::Keyring(e.to_string()))?;
+    let entry =
+        KeyringEntry::new(SERVICE_NAME, key).map_err(|e| SecurityError::Keyring(e.to_string()))?;
 
     entry
         .set_password(value)
@@ -32,28 +32,24 @@ pub fn store_credential(key: &str, value: &str) -> SecurityResult<()> {
 
 /// Retrieve a credential from the system keychain
 pub fn get_credential(key: &str) -> SecurityResult<String> {
-    let entry = KeyringEntry::new(SERVICE_NAME, key)
-        .map_err(|e| SecurityError::Keyring(e.to_string()))?;
+    let entry =
+        KeyringEntry::new(SERVICE_NAME, key).map_err(|e| SecurityError::Keyring(e.to_string()))?;
 
-    entry
-        .get_password()
-        .map_err(|e| match e {
-            keyring::Error::NoEntry => SecurityError::NotFound(key.to_string()),
-            _ => SecurityError::Keyring(e.to_string()),
-        })
+    entry.get_password().map_err(|e| match e {
+        keyring::Error::NoEntry => SecurityError::NotFound(key.to_string()),
+        _ => SecurityError::Keyring(e.to_string()),
+    })
 }
 
 /// Delete a credential from the system keychain
 pub fn delete_credential(key: &str) -> SecurityResult<()> {
-    let entry = KeyringEntry::new(SERVICE_NAME, key)
-        .map_err(|e| SecurityError::Keyring(e.to_string()))?;
+    let entry =
+        KeyringEntry::new(SERVICE_NAME, key).map_err(|e| SecurityError::Keyring(e.to_string()))?;
 
-    entry
-        .delete_credential()
-        .map_err(|e| match e {
-            keyring::Error::NoEntry => SecurityError::NotFound(key.to_string()),
-            _ => SecurityError::Keyring(e.to_string()),
-        })
+    entry.delete_credential().map_err(|e| match e {
+        keyring::Error::NoEntry => SecurityError::NotFound(key.to_string()),
+        _ => SecurityError::Keyring(e.to_string()),
+    })
 }
 
 /// Generate a unique key for SSH credentials

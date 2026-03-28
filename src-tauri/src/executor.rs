@@ -2,20 +2,21 @@
 
 use crate::models::{Entry, EntryType};
 #[cfg(windows)]
-use std::path::PathBuf;
-use std::process::Command;
-#[cfg(target_os = "windows")]
-use std::os::windows::process::CommandExt;
-#[cfg(windows)]
 use std::ffi::OsString;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStringExt;
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
+use std::process::Command;
 #[cfg(windows)]
 use std::ptr;
 #[cfg(windows)]
 use std::time::{Duration, Instant};
+use thiserror::Error;
 #[cfg(windows)]
 use winapi::shared::minwindef::{BOOL, DWORD, LPARAM};
 #[cfg(windows)]
@@ -30,11 +31,10 @@ use winapi::um::psapi::GetModuleFileNameExW;
 use winapi::um::winnt::{PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
 #[cfg(windows)]
 use winapi::um::winuser::{
-    BringWindowToTop, EnumWindows, GetWindowTextLengthW, GetWindowTextW,
-    GetWindowThreadProcessId, IsWindowVisible, MoveWindow, SetForegroundWindow,
-    ShowWindow, SystemParametersInfoW, SPI_GETWORKAREA, SW_MAXIMIZE, SW_RESTORE,
+    BringWindowToTop, EnumWindows, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
+    IsWindowVisible, MoveWindow, SetForegroundWindow, ShowWindow, SystemParametersInfoW,
+    SPI_GETWORKAREA, SW_MAXIMIZE, SW_RESTORE,
 };
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ExecutorError {
@@ -167,8 +167,8 @@ fn execute_cmd(entry: &Entry) -> ExecutorResult<()> {
 
     let mut cmd = if show_terminal {
         // Try to open in terminal emulator
-        let terminal = std::env::var("TERMINAL")
-            .unwrap_or_else(|_| "x-terminal-emulator".to_string());
+        let terminal =
+            std::env::var("TERMINAL").unwrap_or_else(|_| "x-terminal-emulator".to_string());
         let mut c = Command::new(&terminal);
         c.args(["-e", "sh", "-c", &entry.target]);
         c
@@ -237,11 +237,16 @@ fn execute_wsl(_entry: &Entry) -> ExecutorResult<()> {
 
 /// Execute SSH connection
 fn execute_ssh(entry: &Entry) -> ExecutorResult<()> {
-    let host = entry.ssh_host.as_ref().ok_or_else(|| {
-        ExecutorError::ExecutionFailed("SSH host not configured".to_string())
-    })?;
+    let host = entry
+        .ssh_host
+        .as_ref()
+        .ok_or_else(|| ExecutorError::ExecutionFailed("SSH host not configured".to_string()))?;
 
-    let user = entry.ssh_user.as_ref().map(|s| s.as_str()).unwrap_or("root");
+    let user = entry
+        .ssh_user
+        .as_ref()
+        .map(|s| s.as_str())
+        .unwrap_or("root");
     let port = entry.ssh_port.unwrap_or(22);
 
     let ssh_args = vec![
@@ -276,16 +281,14 @@ fn execute_ssh(entry: &Entry) -> ExecutorResult<()> {
         let show_terminal = entry.show_terminal.unwrap_or(true);
 
         if show_terminal {
-            let terminal = std::env::var("TERMINAL")
-                .unwrap_or_else(|_| "x-terminal-emulator".to_string());
+            let terminal =
+                std::env::var("TERMINAL").unwrap_or_else(|_| "x-terminal-emulator".to_string());
             let ssh_cmd = format!("ssh {}", ssh_args.join(" "));
             Command::new(&terminal)
                 .args(["-e", "sh", "-c", &ssh_cmd])
                 .spawn()?;
         } else {
-            Command::new("ssh")
-                .args(&ssh_args)
-                .spawn()?;
+            Command::new("ssh").args(&ssh_args).spawn()?;
         }
     }
 
@@ -293,37 +296,196 @@ fn execute_ssh(entry: &Entry) -> ExecutorResult<()> {
 }
 
 /// Execute script
+/// Priority: if target (script path) is non-empty and points to a file, execute it directly.
+/// Otherwise, use script_content with script_type to determine the interpreter.
 fn execute_script(entry: &Entry) -> ExecutorResult<()> {
-    // Script content is in target field
-    // Determine execution method based on content or extension
+    let target_path = entry.target.trim();
+    let has_script_path = !target_path.is_empty() && std::path::Path::new(target_path).exists();
+
+    if has_script_path {
+        // Execute script file directly
+        execute_script_file(entry, target_path)?;
+    } else {
+        // Execute inline script content
+        let content = entry.script_content.as_deref().unwrap_or("").trim();
+        if content.is_empty() {
+            return Err(ExecutorError::ExecutionFailed(
+                "No script path or script content provided".to_string(),
+            ));
+        }
+        let script_type = entry.script_type.as_deref().unwrap_or("powershell");
+        execute_script_content(entry, content, script_type)?;
+    }
+
+    Ok(())
+}
+
+/// Execute a script file by path
+fn execute_script_file(entry: &Entry, path: &str) -> ExecutorResult<()> {
+    let show_terminal = entry.show_terminal.unwrap_or(false);
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
 
     #[cfg(windows)]
     {
-        let show_terminal = entry.show_terminal.unwrap_or(false);
+        let mut cmd = match ext.as_str() {
+            "ps1" => {
+                if show_terminal {
+                    let mut c = Command::new("cmd");
+                    c.args([
+                        "/c",
+                        "start",
+                        "",
+                        "cmd",
+                        "/k",
+                        "powershell",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        path,
+                    ]);
+                    c
+                } else {
+                    let mut c = Command::new("powershell");
+                    c.args(["-ExecutionPolicy", "Bypass", "-File", path]);
+                    c.creation_flags(0x08000000);
+                    c
+                }
+            }
+            "py" => {
+                if show_terminal {
+                    let mut c = Command::new("cmd");
+                    c.args(["/c", "start", "", "cmd", "/k", "python", path]);
+                    c
+                } else {
+                    let mut c = Command::new("python");
+                    c.arg(path);
+                    c.creation_flags(0x08000000);
+                    c
+                }
+            }
+            "bat" | "cmd" => {
+                if show_terminal {
+                    let mut c = Command::new("cmd");
+                    c.args(["/c", "start", "", "cmd", "/k", path]);
+                    c
+                } else {
+                    let mut c = Command::new("cmd");
+                    c.args(["/c", path]);
+                    c.creation_flags(0x08000000);
+                    c
+                }
+            }
+            "sh" | "bash" => {
+                if show_terminal {
+                    let mut c = Command::new("cmd");
+                    c.args(["/c", "start", "", "bash", path]);
+                    c
+                } else {
+                    let mut c = Command::new("bash");
+                    c.arg(path);
+                    c.creation_flags(0x08000000);
+                    c
+                }
+            }
+            _ => {
+                // Default: try powershell for unknown extensions
+                if show_terminal {
+                    let mut c = Command::new("cmd");
+                    c.args([
+                        "/c",
+                        "start",
+                        "",
+                        "cmd",
+                        "/k",
+                        "powershell",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        path,
+                    ]);
+                    c
+                } else {
+                    let mut c = Command::new("powershell");
+                    c.args(["-ExecutionPolicy", "Bypass", "-File", path]);
+                    c.creation_flags(0x08000000);
+                    c
+                }
+            }
+        };
 
-        // Write script to temp file
-        let temp_dir = std::env::temp_dir();
-        let script_path = temp_dir.join(format!("opener_script_{}.ps1", uuid::Uuid::new_v4()));
-        std::fs::write(&script_path, &entry.target)?;
+        if let Some(ref workdir) = entry.workdir {
+            cmd.current_dir(workdir);
+        }
+        cmd.spawn()?;
+    }
+
+    #[cfg(not(windows))]
+    {
+        if show_terminal {
+            let terminal =
+                std::env::var("TERMINAL").unwrap_or_else(|_| "x-terminal-emulator".to_string());
+            let mut cmd = Command::new(&terminal);
+            cmd.args(["-e", path]);
+            if let Some(ref workdir) = entry.workdir {
+                cmd.current_dir(workdir);
+            }
+            cmd.spawn()?;
+        } else {
+            let interpreter = match ext.as_str() {
+                "py" => "python3",
+                "sh" | "bash" | "" => "bash",
+                _ => "bash",
+            };
+            let mut cmd = Command::new(interpreter);
+            cmd.arg(path);
+            if let Some(ref workdir) = entry.workdir {
+                cmd.current_dir(workdir);
+            }
+            cmd.spawn()?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Execute inline script content, writing to a temp file with appropriate extension
+fn execute_script_content(entry: &Entry, content: &str, script_type: &str) -> ExecutorResult<()> {
+    let show_terminal = entry.show_terminal.unwrap_or(false);
+    let temp_dir = std::env::temp_dir();
+
+    #[cfg(windows)]
+    {
+        let (ext, interpreter, interpreter_args): (&str, &str, Vec<&str>) = match script_type {
+            "bash" => ("sh", "bash", vec![]),
+            "python" => ("py", "python", vec![]),
+            "cmd" => ("bat", "cmd", vec!["/c"]),
+            _ => (
+                "ps1",
+                "powershell",
+                vec!["-ExecutionPolicy", "Bypass", "-File"],
+            ),
+        };
+
+        let script_path = temp_dir.join(format!("opener_script_{}.{}", uuid::Uuid::new_v4(), ext));
+        std::fs::write(&script_path, content)?;
+        let path_str = script_path.to_string_lossy().to_string();
 
         let mut cmd = if show_terminal {
             let mut c = Command::new("cmd");
-            c.args([
-                "/c",
-                "start",
-                "",
-                "cmd",
-                "/k",
-                "powershell",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                &script_path.to_string_lossy(),
-            ]);
+            let mut args = vec!["/c", "start", "", "cmd", "/k", interpreter];
+            args.extend_from_slice(&interpreter_args);
+            args.push(&path_str);
+            c.args(&args);
             c
         } else {
-            let mut c = Command::new("powershell");
-            c.args(["-ExecutionPolicy", "Bypass", "-File", &script_path.to_string_lossy()]);
+            let mut c = Command::new(interpreter);
+            let mut args: Vec<&str> = interpreter_args.clone();
+            args.push(&path_str);
+            c.args(&args);
             c.creation_flags(0x08000000);
             c
         };
@@ -331,33 +493,35 @@ fn execute_script(entry: &Entry) -> ExecutorResult<()> {
         if let Some(ref workdir) = entry.workdir {
             cmd.current_dir(workdir);
         }
-
         cmd.spawn()?;
     }
 
     #[cfg(not(windows))]
     {
-        let show_terminal = entry.show_terminal.unwrap_or(false);
+        let (ext, interpreter): (&str, &str) = match script_type {
+            "python" => ("py", "python3"),
+            "cmd" | "bash" | _ => ("sh", "bash"),
+        };
 
-        // Write script to temp file
-        let temp_dir = std::env::temp_dir();
-        let script_path = temp_dir.join(format!("opener_script_{}.sh", uuid::Uuid::new_v4()));
-        std::fs::write(&script_path, &entry.target)?;
+        let script_path = temp_dir.join(format!("opener_script_{}.{}", uuid::Uuid::new_v4(), ext));
+        std::fs::write(&script_path, content)?;
 
-        // Make executable
         use std::os::unix::fs::PermissionsExt;
         let mut perms = std::fs::metadata(&script_path)?.permissions();
         perms.set_mode(0o755);
         std::fs::set_permissions(&script_path, perms)?;
 
         if show_terminal {
-            let terminal = std::env::var("TERMINAL")
-                .unwrap_or_else(|_| "x-terminal-emulator".to_string());
-            Command::new(&terminal)
-                .args(["-e", &script_path.to_string_lossy()])
-                .spawn()?;
+            let terminal =
+                std::env::var("TERMINAL").unwrap_or_else(|_| "x-terminal-emulator".to_string());
+            let mut cmd = Command::new(&terminal);
+            cmd.args(["-e", &script_path.to_string_lossy()]);
+            if let Some(ref workdir) = entry.workdir {
+                cmd.current_dir(workdir);
+            }
+            cmd.spawn()?;
         } else {
-            let mut cmd = Command::new("sh");
+            let mut cmd = Command::new(interpreter);
             cmd.arg(&script_path);
             if let Some(ref workdir) = entry.workdir {
                 cmd.current_dir(workdir);
@@ -419,10 +583,7 @@ fn execute_hotkey_app(entry: &Entry) -> ExecutorResult<()> {
         restore_and_focus(hwnd);
         apply_position(hwnd, &position)?;
     } else {
-        log::warn!(
-            "HotKey应用窗口未检测到，已跳过定位: {}",
-            entry.target
-        );
+        log::warn!("HotKey应用窗口未检测到，已跳过定位: {}", entry.target);
     }
 
     Ok(())
@@ -475,7 +636,11 @@ fn split_hotkey_target(value: &str) -> (String, Option<String>) {
             let rest = trimmed[end + 1..].trim();
             return (
                 executable,
-                if rest.is_empty() { None } else { Some(rest.to_string()) },
+                if rest.is_empty() {
+                    None
+                } else {
+                    Some(rest.to_string())
+                },
             );
         }
     }
@@ -496,7 +661,11 @@ fn split_hotkey_target(value: &str) -> (String, Option<String>) {
         let rest = trimmed[best_end.unwrap_or(trimmed.len())..].trim();
         return (
             exec,
-            if rest.is_empty() { None } else { Some(rest.to_string()) },
+            if rest.is_empty() {
+                None
+            } else {
+                Some(rest.to_string())
+            },
         );
     }
 
@@ -509,7 +678,11 @@ fn split_hotkey_target(value: &str) -> (String, Option<String>) {
         let rest = trimmed[pos..].trim();
         return (
             exec,
-            if rest.is_empty() { None } else { Some(rest.to_string()) },
+            if rest.is_empty() {
+                None
+            } else {
+                Some(rest.to_string())
+            },
         );
     }
 
@@ -528,10 +701,7 @@ fn build_window_filter(entry: &Entry) -> WindowFilter {
     if !raw.is_empty() {
         let lower = raw.to_lowercase();
         if lower.starts_with("ahk_exe ") {
-            let exe_name = raw
-                .get("ahk_exe ".len()..)
-                .unwrap_or("")
-                .trim();
+            let exe_name = raw.get("ahk_exe ".len()..).unwrap_or("").trim();
             if !exe_name.is_empty() {
                 return WindowFilter::Exe(exe_name.to_string());
             }
@@ -640,7 +810,10 @@ fn match_window_exe(hwnd: HWND, exe: &str) -> bool {
         .map(|text| {
             let process_lower = text.to_lowercase();
             process_lower == normalized_lower
-                || exe_lower.as_ref().map(|exe| process_lower == *exe).unwrap_or(false)
+                || exe_lower
+                    .as_ref()
+                    .map(|exe| process_lower == *exe)
+                    .unwrap_or(false)
         })
         .unwrap_or(false)
 }
@@ -657,7 +830,11 @@ fn get_window_title(hwnd: HWND) -> Option<String> {
         if read == 0 {
             return None;
         }
-        Some(OsString::from_wide(&buffer[..read as usize]).to_string_lossy().to_string())
+        Some(
+            OsString::from_wide(&buffer[..read as usize])
+                .to_string_lossy()
+                .to_string(),
+        )
     }
 }
 
@@ -676,13 +853,20 @@ fn get_window_process_exe(hwnd: HWND) -> Option<String> {
         }
 
         let mut buffer = vec![0u16; 260];
-        let len = GetModuleFileNameExW(handle, ptr::null_mut(), buffer.as_mut_ptr(), buffer.len() as DWORD);
+        let len = GetModuleFileNameExW(
+            handle,
+            ptr::null_mut(),
+            buffer.as_mut_ptr(),
+            buffer.len() as DWORD,
+        );
         CloseHandle(handle);
         if len == 0 {
             return None;
         }
 
-        let path = OsString::from_wide(&buffer[..len as usize]).to_string_lossy().to_string();
+        let path = OsString::from_wide(&buffer[..len as usize])
+            .to_string_lossy()
+            .to_string();
         Path::new(&path)
             .file_name()
             .map(|name| name.to_string_lossy().to_string())
@@ -841,7 +1025,10 @@ fn execute_ahk(_entry: &Entry, _ahk_path: Option<&str>) -> ExecutorResult<()> {
 }
 
 /// Render template variables into content
-pub fn render_template(template: &str, variables: &std::collections::HashMap<String, String>) -> String {
+pub fn render_template(
+    template: &str,
+    variables: &std::collections::HashMap<String, String>,
+) -> String {
     let mut result = template.to_string();
     for (key, value) in variables {
         let placeholder = format!("{{{{{}}}}}", key);
@@ -922,23 +1109,46 @@ pub fn get_execution_preview(entry: &Entry) -> String {
         EntryType::File => format!("Open file: {}", entry.target),
         EntryType::Dir => format!("Open directory: {}", entry.target),
         EntryType::App => {
-            let args = entry.args.as_ref().map(|a| format!(" {}", a)).unwrap_or_default();
+            let args = entry
+                .args
+                .as_ref()
+                .map(|a| format!(" {}", a))
+                .unwrap_or_default();
             format!("Run: {}{}", entry.target, args)
         }
         EntryType::Cmd => format!("Execute command: {}", entry.target),
         EntryType::Wsl => {
-            let distro = entry.wsl_distro.as_ref().map(|d| format!(" -d {}", d)).unwrap_or_default();
+            let distro = entry
+                .wsl_distro
+                .as_ref()
+                .map(|d| format!(" -d {}", d))
+                .unwrap_or_default();
             format!("WSL{}: {}", distro, entry.target)
         }
         EntryType::Ssh => {
-            let host = entry.ssh_host.as_ref().map(|h| h.as_str()).unwrap_or("unknown");
-            let user = entry.ssh_user.as_ref().map(|u| u.as_str()).unwrap_or("root");
+            let host = entry
+                .ssh_host
+                .as_ref()
+                .map(|h| h.as_str())
+                .unwrap_or("unknown");
+            let user = entry
+                .ssh_user
+                .as_ref()
+                .map(|u| u.as_str())
+                .unwrap_or("root");
             let port = entry.ssh_port.unwrap_or(22);
             format!("SSH: {}@{}:{}", user, host, port)
         }
         EntryType::Script => {
-            let preview = entry.target.lines().next().unwrap_or("(empty script)");
-            format!("Execute script: {}...", preview)
+            let target = entry.target.trim();
+            if !target.is_empty() {
+                format!("Execute script file: {}", target)
+            } else {
+                let content = entry.script_content.as_deref().unwrap_or("");
+                let script_type = entry.script_type.as_deref().unwrap_or("powershell");
+                let preview = content.lines().next().unwrap_or("(empty script)");
+                format!("Execute {} script: {}...", script_type, preview)
+            }
         }
         EntryType::Shortcut => format!("Open shortcut: {}", entry.target),
         EntryType::Ahk => {
@@ -946,7 +1156,11 @@ pub fn get_execution_preview(entry: &Entry) -> String {
             format!("Run AHK: {}...", preview)
         }
         EntryType::HotkeyApp => {
-            let name = if entry.name.is_empty() { "HotKey应用" } else { entry.name.as_str() };
+            let name = if entry.name.is_empty() {
+                "HotKey应用"
+            } else {
+                entry.name.as_str()
+            };
             format!("HotKey应用: {}", name)
         }
     }

@@ -111,6 +111,10 @@ pub struct Entry {
     pub hotkey_position: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hotkey_detect_hidden: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub script_content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub script_type: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -144,6 +148,8 @@ impl Entry {
             hotkey_filter: None,
             hotkey_position: None,
             hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
             created_at: now,
             updated_at: now,
             last_used_at: None,
@@ -176,6 +182,8 @@ pub struct CreateEntryInput {
     pub hotkey_filter: Option<String>,
     pub hotkey_position: Option<String>,
     pub hotkey_detect_hidden: Option<bool>,
+    pub script_content: Option<String>,
+    pub script_type: Option<String>,
 }
 
 /// Input structure for updating an entry
@@ -202,6 +210,8 @@ pub struct UpdateEntryInput {
     pub hotkey_filter: Option<String>,
     pub hotkey_position: Option<String>,
     pub hotkey_detect_hidden: Option<bool>,
+    pub script_content: Option<String>,
+    pub script_type: Option<String>,
 }
 
 /// Hotkey scope enum

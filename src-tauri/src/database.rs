@@ -120,6 +120,8 @@ impl Database {
             ("hotkey_filter", "TEXT"),
             ("hotkey_position", "TEXT"),
             ("hotkey_detect_hidden", "INTEGER"),
+            ("script_content", "TEXT"),
+            ("script_type", "TEXT"),
         ];
 
         for (name, column_type) in columns {
@@ -135,11 +137,9 @@ impl Database {
     /// Seed default data if tables are empty
     fn seed_default_data(&self) -> DbResult<()> {
         // Check if settings exist
-        let settings_count: i32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM settings",
-            [],
-            |row| row.get(0),
-        )?;
+        let settings_count: i32 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM settings", [], |row| row.get(0))?;
 
         if settings_count == 0 {
             let default_settings = Settings::default();
@@ -147,11 +147,11 @@ impl Database {
         }
 
         // Check if templates exist
-        let template_count: i32 = self.conn.query_row(
-            "SELECT COUNT(*) FROM script_templates",
-            [],
-            |row| row.get(0),
-        )?;
+        let template_count: i32 =
+            self.conn
+                .query_row("SELECT COUNT(*) FROM script_templates", [], |row| {
+                    row.get(0)
+                })?;
 
         if template_count == 0 {
             self.seed_default_templates()?;
@@ -199,7 +199,9 @@ impl Database {
                 name: "Git Pull".to_string(),
                 description: Some("Pull latest changes from a git repository".to_string()),
                 language: "shell".to_string(),
-                template_content: "cd \"{{repo_path}}\" && git checkout {{branch}} && git pull origin {{branch}}".to_string(),
+                template_content:
+                    "cd \"{{repo_path}}\" && git checkout {{branch}} && git pull origin {{branch}}"
+                        .to_string(),
                 variables: vec![
                     VariableDefinition {
                         name: "repo_path".to_string(),
@@ -228,7 +230,8 @@ impl Database {
                 name: "Start Dev Server".to_string(),
                 description: Some("Start a development server".to_string()),
                 language: "shell".to_string(),
-                template_content: "cd \"{{workdir}}\" && {{package_manager}} run dev --port {{port}}".to_string(),
+                template_content:
+                    "cd \"{{workdir}}\" && {{package_manager}} run dev --port {{port}}".to_string(),
                 variables: vec![
                     VariableDefinition {
                         name: "workdir".to_string(),
@@ -254,7 +257,12 @@ impl Database {
                         label: "Package Manager".to_string(),
                         default_value: Some("npm".to_string()),
                         required: true,
-                        choices: Some(vec!["npm".to_string(), "yarn".to_string(), "pnpm".to_string(), "bun".to_string()]),
+                        choices: Some(vec![
+                            "npm".to_string(),
+                            "yarn".to_string(),
+                            "pnpm".to_string(),
+                            "bun".to_string(),
+                        ]),
                         validation_regex: None,
                     },
                 ],
@@ -312,7 +320,12 @@ impl Database {
                         label: "Distribution".to_string(),
                         default_value: Some("Ubuntu".to_string()),
                         required: true,
-                        choices: Some(vec!["Ubuntu".to_string(), "Debian".to_string(), "openSUSE-Leap".to_string(), "kali-linux".to_string()]),
+                        choices: Some(vec![
+                            "Ubuntu".to_string(),
+                            "Debian".to_string(),
+                            "openSUSE-Leap".to_string(),
+                            "kali-linux".to_string(),
+                        ]),
                         validation_regex: None,
                     },
                     VariableDefinition {
@@ -505,13 +518,15 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             "SELECT id, name, type, target, args, workdir, icon_path, tags, description,
                     enabled, confirm_before_run, show_terminal, wsl_distro, ssh_host,
                     ssh_user, ssh_port, ssh_key_id, env_vars, hotkey_filter,
-                    hotkey_position, hotkey_detect_hidden, created_at, updated_at,
-                    last_used_at, use_count
-             FROM entries ORDER BY name"
+                    hotkey_position, hotkey_detect_hidden, script_content, script_type,
+                    created_at, updated_at, last_used_at, use_count
+             FROM entries ORDER BY name",
         )?;
 
         let entries = stmt.query_map([], |row| self.row_to_entry(row))?;
-        entries.collect::<Result<Vec<_>, _>>().map_err(DatabaseError::from)
+        entries
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DatabaseError::from)
     }
 
     pub fn get_entry(&self, id: &str) -> DbResult<Entry> {
@@ -519,14 +534,16 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             "SELECT id, name, type, target, args, workdir, icon_path, tags, description,
                     enabled, confirm_before_run, show_terminal, wsl_distro, ssh_host,
                     ssh_user, ssh_port, ssh_key_id, env_vars, hotkey_filter,
-                    hotkey_position, hotkey_detect_hidden, created_at, updated_at,
-                    last_used_at, use_count
-             FROM entries WHERE id = ?"
+                    hotkey_position, hotkey_detect_hidden, script_content, script_type,
+                    created_at, updated_at, last_used_at, use_count
+             FROM entries WHERE id = ?",
         )?;
 
         stmt.query_row([id], |row| self.row_to_entry(row))
             .map_err(|e| match e {
-                rusqlite::Error::QueryReturnedNoRows => DatabaseError::NotFound(format!("Entry with id {} not found", id)),
+                rusqlite::Error::QueryReturnedNoRows => {
+                    DatabaseError::NotFound(format!("Entry with id {} not found", id))
+                }
                 _ => DatabaseError::from(e),
             })
     }
@@ -542,8 +559,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                                   description, enabled, confirm_before_run, show_terminal,
                                   wsl_distro, ssh_host, ssh_user, ssh_port, ssh_key_id,
                                   env_vars, hotkey_filter, hotkey_position, hotkey_detect_hidden,
+                                  script_content, script_type,
                                   created_at, updated_at, use_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, 0)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, 0)",
             params![
                 id,
                 input.name,
@@ -566,6 +584,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 input.hotkey_filter,
                 input.hotkey_position,
                 input.hotkey_detect_hidden,
+                input.script_content,
+                input.script_type,
                 now_str,
                 now_str,
             ],
@@ -663,17 +683,23 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             updates.push("hotkey_detect_hidden = ?");
             params_vec.push(Box::new(hotkey_detect_hidden));
         }
+        if let Some(ref script_content) = input.script_content {
+            updates.push("script_content = ?");
+            params_vec.push(Box::new(script_content.clone()));
+        }
+        if let Some(ref script_type) = input.script_type {
+            updates.push("script_type = ?");
+            params_vec.push(Box::new(script_type.clone()));
+        }
 
         updates.push("updated_at = ?");
         params_vec.push(Box::new(now));
         params_vec.push(Box::new(id.to_string()));
 
         if !updates.is_empty() {
-            let sql = format!(
-                "UPDATE entries SET {} WHERE id = ?",
-                updates.join(", ")
-            );
-            let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+            let sql = format!("UPDATE entries SET {} WHERE id = ?", updates.join(", "));
+            let params_refs: Vec<&dyn rusqlite::ToSql> =
+                params_vec.iter().map(|b| b.as_ref()).collect();
             self.conn.execute(&sql, params_refs.as_slice())?;
         }
 
@@ -681,12 +707,18 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
     }
 
     pub fn delete_entry(&self, id: &str) -> DbResult<()> {
-        let rows = self.conn.execute("DELETE FROM entries WHERE id = ?", [id])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM entries WHERE id = ?", [id])?;
         if rows == 0 {
-            return Err(DatabaseError::NotFound(format!("Entry with id {} not found", id)));
+            return Err(DatabaseError::NotFound(format!(
+                "Entry with id {} not found",
+                id
+            )));
         }
         // Also delete associated hotkeys
-        self.conn.execute("DELETE FROM hotkeys WHERE entry_id = ?", [id])?;
+        self.conn
+            .execute("DELETE FROM hotkeys WHERE entry_id = ?", [id])?;
         Ok(())
     }
 
@@ -697,7 +729,10 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             params![enabled, now, id],
         )?;
         if rows == 0 {
-            return Err(DatabaseError::NotFound(format!("Entry with id {} not found", id)));
+            return Err(DatabaseError::NotFound(format!(
+                "Entry with id {} not found",
+                id
+            )));
         }
         self.get_entry(id)
     }
@@ -709,15 +744,18 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             params![now, now, id],
         )?;
         if rows == 0 {
-            return Err(DatabaseError::NotFound(format!("Entry with id {} not found", id)));
+            return Err(DatabaseError::NotFound(format!(
+                "Entry with id {} not found",
+                id
+            )));
         }
         Ok(())
     }
 
     /// Search entries with fuzzy matching
     pub fn search_entries(&self, query: &str, settings: &Settings) -> DbResult<Vec<SearchResult>> {
-        use fuzzy_matcher::FuzzyMatcher;
         use fuzzy_matcher::skim::SkimMatcherV2;
+        use fuzzy_matcher::FuzzyMatcher;
 
         let matcher = SkimMatcherV2::default();
         let all_entries = self.get_all_entries()?;
@@ -731,7 +769,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 // Match against target
                 let target_score = matcher.fuzzy_match(&entry.target, query).unwrap_or(0);
                 // Match against tags
-                let tags_score = entry.tags.as_ref()
+                let tags_score = entry
+                    .tags
+                    .as_ref()
                     .map(|t| matcher.fuzzy_match(t, query).unwrap_or(0))
                     .unwrap_or(0);
 
@@ -754,7 +794,12 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 results.sort_by(|a, b| b.score.cmp(&a.score));
             }
             SortStrategy::Name => {
-                results.sort_by(|a, b| a.entry.name.to_lowercase().cmp(&b.entry.name.to_lowercase()));
+                results.sort_by(|a, b| {
+                    a.entry
+                        .name
+                        .to_lowercase()
+                        .cmp(&b.entry.name.to_lowercase())
+                });
             }
             SortStrategy::RecentlyUsed => {
                 results.sort_by(|a, b| {
@@ -776,9 +821,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
 
     fn row_to_entry(&self, row: &rusqlite::Row) -> rusqlite::Result<Entry> {
         let type_str: String = row.get(2)?;
-        let created_at_str: String = row.get(21)?;
-        let updated_at_str: String = row.get(22)?;
-        let last_used_at_str: Option<String> = row.get(23)?;
+        let created_at_str: String = row.get(23)?;
+        let updated_at_str: String = row.get(24)?;
+        let last_used_at_str: Option<String> = row.get(25)?;
 
         Ok(Entry {
             id: row.get(0)?,
@@ -802,6 +847,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             hotkey_filter: row.get(18)?,
             hotkey_position: row.get(19)?,
             hotkey_detect_hidden: row.get(20)?,
+            script_content: row.get(21)?,
+            script_type: row.get(22)?,
             created_at: DateTime::parse_from_rfc3339(&created_at_str)
                 .map(|dt| dt.with_timezone(&Utc))
                 .unwrap_or_else(|_| Utc::now()),
@@ -813,7 +860,7 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                     .map(|dt| dt.with_timezone(&Utc))
                     .ok()
             }),
-            use_count: row.get(24)?,
+            use_count: row.get(26)?,
         })
     }
 
@@ -822,7 +869,7 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
     pub fn get_all_hotkeys(&self) -> DbResult<Vec<Hotkey>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, entry_id, accelerator, scope, enabled, created_at, updated_at
-             FROM hotkeys ORDER BY accelerator"
+             FROM hotkeys ORDER BY accelerator",
         )?;
 
         let hotkeys = stmt.query_map([], |row| {
@@ -845,13 +892,15 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             })
         })?;
 
-        hotkeys.collect::<Result<Vec<_>, _>>().map_err(DatabaseError::from)
+        hotkeys
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DatabaseError::from)
     }
 
     pub fn get_hotkey(&self, id: &str) -> DbResult<Hotkey> {
         let mut stmt = self.conn.prepare(
             "SELECT id, entry_id, accelerator, scope, enabled, created_at, updated_at
-             FROM hotkeys WHERE id = ?"
+             FROM hotkeys WHERE id = ?",
         )?;
 
         stmt.query_row([id], |row| {
@@ -874,12 +923,19 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             })
         })
         .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => DatabaseError::NotFound(format!("Hotkey with id {} not found", id)),
+            rusqlite::Error::QueryReturnedNoRows => {
+                DatabaseError::NotFound(format!("Hotkey with id {} not found", id))
+            }
             _ => DatabaseError::from(e),
         })
     }
 
-    pub fn create_hotkey(&self, entry_id: &str, accelerator: &str, scope: HotkeyScope) -> DbResult<Hotkey> {
+    pub fn create_hotkey(
+        &self,
+        entry_id: &str,
+        accelerator: &str,
+        scope: HotkeyScope,
+    ) -> DbResult<Hotkey> {
         // Verify entry exists
         let _entry = self.get_entry(entry_id)?;
 
@@ -896,7 +952,13 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
         self.get_hotkey(&id)
     }
 
-    pub fn update_hotkey(&self, id: &str, accelerator: Option<&str>, scope: Option<HotkeyScope>, enabled: Option<bool>) -> DbResult<Hotkey> {
+    pub fn update_hotkey(
+        &self,
+        id: &str,
+        accelerator: Option<&str>,
+        scope: Option<HotkeyScope>,
+        enabled: Option<bool>,
+    ) -> DbResult<Hotkey> {
         let _existing = self.get_hotkey(id)?;
         let now = Utc::now().to_rfc3339();
 
@@ -918,25 +980,33 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
 
         params_vec.push(Box::new(id.to_string()));
 
-        let sql = format!(
-            "UPDATE hotkeys SET {} WHERE id = ?",
-            updates.join(", ")
-        );
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+        let sql = format!("UPDATE hotkeys SET {} WHERE id = ?", updates.join(", "));
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|b| b.as_ref()).collect();
         self.conn.execute(&sql, params_refs.as_slice())?;
 
         self.get_hotkey(id)
     }
 
     pub fn delete_hotkey(&self, id: &str) -> DbResult<()> {
-        let rows = self.conn.execute("DELETE FROM hotkeys WHERE id = ?", [id])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM hotkeys WHERE id = ?", [id])?;
         if rows == 0 {
-            return Err(DatabaseError::NotFound(format!("Hotkey with id {} not found", id)));
+            return Err(DatabaseError::NotFound(format!(
+                "Hotkey with id {} not found",
+                id
+            )));
         }
         Ok(())
     }
 
-    pub fn check_hotkey_conflict(&self, accelerator: &str, scope: &HotkeyScope, exclude_id: Option<&str>) -> DbResult<Option<Hotkey>> {
+    pub fn check_hotkey_conflict(
+        &self,
+        accelerator: &str,
+        scope: &HotkeyScope,
+        exclude_id: Option<&str>,
+    ) -> DbResult<Option<Hotkey>> {
         let sql = match exclude_id {
             Some(_) => "SELECT id, entry_id, accelerator, scope, enabled, created_at, updated_at
                         FROM hotkeys WHERE accelerator = ? AND scope = ? AND id != ? AND enabled = 1",
@@ -945,45 +1015,47 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
         };
 
         let result = if let Some(excl) = exclude_id {
-            self.conn.query_row(sql, params![accelerator, scope.as_str(), excl], |row| {
-                let scope_str: String = row.get(3)?;
-                let created_at_str: String = row.get(5)?;
-                let updated_at_str: String = row.get(6)?;
+            self.conn
+                .query_row(sql, params![accelerator, scope.as_str(), excl], |row| {
+                    let scope_str: String = row.get(3)?;
+                    let created_at_str: String = row.get(5)?;
+                    let updated_at_str: String = row.get(6)?;
 
-                Ok(Hotkey {
-                    id: row.get(0)?,
-                    entry_id: row.get(1)?,
-                    accelerator: row.get(2)?,
-                    scope: HotkeyScope::from_str(&scope_str).unwrap_or(HotkeyScope::App),
-                    enabled: row.get(4)?,
-                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
+                    Ok(Hotkey {
+                        id: row.get(0)?,
+                        entry_id: row.get(1)?,
+                        accelerator: row.get(2)?,
+                        scope: HotkeyScope::from_str(&scope_str).unwrap_or(HotkeyScope::App),
+                        enabled: row.get(4)?,
+                        created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                        updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
                 })
-            })
         } else {
-            self.conn.query_row(sql, params![accelerator, scope.as_str()], |row| {
-                let scope_str: String = row.get(3)?;
-                let created_at_str: String = row.get(5)?;
-                let updated_at_str: String = row.get(6)?;
+            self.conn
+                .query_row(sql, params![accelerator, scope.as_str()], |row| {
+                    let scope_str: String = row.get(3)?;
+                    let created_at_str: String = row.get(5)?;
+                    let updated_at_str: String = row.get(6)?;
 
-                Ok(Hotkey {
-                    id: row.get(0)?,
-                    entry_id: row.get(1)?,
-                    accelerator: row.get(2)?,
-                    scope: HotkeyScope::from_str(&scope_str).unwrap_or(HotkeyScope::App),
-                    enabled: row.get(4)?,
-                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
-                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
-                        .map(|dt| dt.with_timezone(&Utc))
-                        .unwrap_or_else(|_| Utc::now()),
+                    Ok(Hotkey {
+                        id: row.get(0)?,
+                        entry_id: row.get(1)?,
+                        accelerator: row.get(2)?,
+                        scope: HotkeyScope::from_str(&scope_str).unwrap_or(HotkeyScope::App),
+                        enabled: row.get(4)?,
+                        created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                        updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .unwrap_or_else(|_| Utc::now()),
+                    })
                 })
-            })
         };
 
         match result {
@@ -1011,7 +1083,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 "show_description" => settings.show_description = value == "true",
                 "sort_strategy" => settings.sort_strategy = SortStrategy::from_str(&value),
                 "max_results" => settings.max_results = value.parse().unwrap_or(50),
-                "confirm_dangerous_commands" => settings.confirm_dangerous_commands = value == "true",
+                "confirm_dangerous_commands" => {
+                    settings.confirm_dangerous_commands = value == "true"
+                }
                 "auto_launch" => settings.auto_launch = value == "true",
                 "app_hotkey" => settings.app_hotkey = value,
                 "theme" => settings.theme = value,
@@ -1032,12 +1106,18 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             ("show_description", settings.show_description.to_string()),
             ("sort_strategy", settings.sort_strategy.as_str().to_string()),
             ("max_results", settings.max_results.to_string()),
-            ("confirm_dangerous_commands", settings.confirm_dangerous_commands.to_string()),
+            (
+                "confirm_dangerous_commands",
+                settings.confirm_dangerous_commands.to_string(),
+            ),
             ("auto_launch", settings.auto_launch.to_string()),
             ("app_hotkey", settings.app_hotkey.clone()),
             ("theme", settings.theme.clone()),
             ("language", settings.language.clone()),
-            ("search_debounce_ms", settings.search_debounce_ms.to_string()),
+            (
+                "search_debounce_ms",
+                settings.search_debounce_ms.to_string(),
+            ),
         ];
 
         for (key, value) in pairs {
@@ -1063,8 +1143,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             let created_at_str: String = row.get(6)?;
             let updated_at_str: String = row.get(7)?;
 
-            let variables: Vec<VariableDefinition> = serde_json::from_str(&variables_json)
-                .unwrap_or_default();
+            let variables: Vec<VariableDefinition> =
+                serde_json::from_str(&variables_json).unwrap_or_default();
 
             Ok(ScriptTemplate {
                 id: row.get(0)?,
@@ -1082,7 +1162,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             })
         })?;
 
-        templates.collect::<Result<Vec<_>, _>>().map_err(DatabaseError::from)
+        templates
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(DatabaseError::from)
     }
 
     pub fn get_template(&self, id: &str) -> DbResult<ScriptTemplate> {
@@ -1096,8 +1178,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             let created_at_str: String = row.get(6)?;
             let updated_at_str: String = row.get(7)?;
 
-            let variables: Vec<VariableDefinition> = serde_json::from_str(&variables_json)
-                .unwrap_or_default();
+            let variables: Vec<VariableDefinition> =
+                serde_json::from_str(&variables_json).unwrap_or_default();
 
             Ok(ScriptTemplate {
                 id: row.get(0)?,
@@ -1115,7 +1197,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             })
         })
         .map_err(|e| match e {
-            rusqlite::Error::QueryReturnedNoRows => DatabaseError::NotFound(format!("Template with id {} not found", id)),
+            rusqlite::Error::QueryReturnedNoRows => {
+                DatabaseError::NotFound(format!("Template with id {} not found", id))
+            }
             _ => DatabaseError::from(e),
         })
     }
@@ -1142,9 +1226,15 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
         self.get_template(&template.id)
     }
 
-    pub fn update_template(&self, id: &str, name: Option<&str>, description: Option<&str>,
-                           language: Option<&str>, template_content: Option<&str>,
-                           variables: Option<&Vec<VariableDefinition>>) -> DbResult<ScriptTemplate> {
+    pub fn update_template(
+        &self,
+        id: &str,
+        name: Option<&str>,
+        description: Option<&str>,
+        language: Option<&str>,
+        template_content: Option<&str>,
+        variables: Option<&Vec<VariableDefinition>>,
+    ) -> DbResult<ScriptTemplate> {
         let _existing = self.get_template(id)?;
         let now = Utc::now().to_rfc3339();
 
@@ -1178,16 +1268,22 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             "UPDATE script_templates SET {} WHERE id = ?",
             updates.join(", ")
         );
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|b| b.as_ref()).collect();
         self.conn.execute(&sql, params_refs.as_slice())?;
 
         self.get_template(id)
     }
 
     pub fn delete_template(&self, id: &str) -> DbResult<()> {
-        let rows = self.conn.execute("DELETE FROM script_templates WHERE id = ?", [id])?;
+        let rows = self
+            .conn
+            .execute("DELETE FROM script_templates WHERE id = ?", [id])?;
         if rows == 0 {
-            return Err(DatabaseError::NotFound(format!("Template with id {} not found", id)));
+            return Err(DatabaseError::NotFound(format!(
+                "Template with id {} not found",
+                id
+            )));
         }
         Ok(())
     }
@@ -1205,7 +1301,11 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
         })
     }
 
-    pub fn import_data(&self, data: &ExportData, strategy: ImportStrategy) -> DbResult<ImportResult> {
+    pub fn import_data(
+        &self,
+        data: &ExportData,
+        strategy: ImportStrategy,
+    ) -> DbResult<ImportResult> {
         let mut result = ImportResult::default();
 
         match strategy {
@@ -1262,8 +1362,11 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                     }
                 }
 
-                let existing_template_ids: std::collections::HashSet<String> =
-                    self.get_all_templates()?.into_iter().map(|t| t.id).collect();
+                let existing_template_ids: std::collections::HashSet<String> = self
+                    .get_all_templates()?
+                    .into_iter()
+                    .map(|t| t.id)
+                    .collect();
 
                 for template in &data.templates {
                     if !existing_template_ids.contains(&template.id) {
@@ -1276,8 +1379,11 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
             }
             ImportStrategy::MergeByName => {
                 // Merge by name - update if exists, add if new
-                let existing_entries: std::collections::HashMap<String, Entry> =
-                    self.get_all_entries()?.into_iter().map(|e| (e.name.clone(), e)).collect();
+                let existing_entries: std::collections::HashMap<String, Entry> = self
+                    .get_all_entries()?
+                    .into_iter()
+                    .map(|e| (e.name.clone(), e))
+                    .collect();
 
                 for entry in &data.entries {
                     if let Some(existing) = existing_entries.get(&entry.name) {
@@ -1306,7 +1412,10 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 }
 
                 let existing_template_names: std::collections::HashMap<String, ScriptTemplate> =
-                    self.get_all_templates()?.into_iter().map(|t| (t.name.clone(), t)).collect();
+                    self.get_all_templates()?
+                        .into_iter()
+                        .map(|t| (t.name.clone(), t))
+                        .collect();
 
                 for template in &data.templates {
                     if existing_template_names.contains_key(&template.name) {
@@ -1497,6 +1606,8 @@ mod tests {
             hotkey_filter: None,
             hotkey_position: None,
             hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
         };
 
         let entry = db.create_entry(&input).unwrap();
@@ -1529,6 +1640,8 @@ mod tests {
             hotkey_filter: None,
             hotkey_position: None,
             hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
         };
 
         let updated = db.update_entry(&entry.id, &update_input).unwrap();
@@ -1575,6 +1688,8 @@ mod tests {
                 hotkey_filter: None,
                 hotkey_position: None,
                 hotkey_detect_hidden: None,
+                script_content: None,
+                script_type: None,
             };
             db.create_entry(&input).unwrap();
         }
@@ -1619,19 +1734,27 @@ mod tests {
             hotkey_filter: None,
             hotkey_position: None,
             hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
         };
         let entry = db.create_entry(&input).unwrap();
 
         // Create a hotkey
-        let hotkey = db.create_hotkey(&entry.id, "Ctrl+Alt+T", HotkeyScope::App).unwrap();
+        let hotkey = db
+            .create_hotkey(&entry.id, "Ctrl+Alt+T", HotkeyScope::App)
+            .unwrap();
         assert_eq!(hotkey.accelerator, "Ctrl+Alt+T");
 
         // Check for conflict
-        let conflict = db.check_hotkey_conflict("Ctrl+Alt+T", &HotkeyScope::App, None).unwrap();
+        let conflict = db
+            .check_hotkey_conflict("Ctrl+Alt+T", &HotkeyScope::App, None)
+            .unwrap();
         assert!(conflict.is_some());
 
         // No conflict with different accelerator
-        let no_conflict = db.check_hotkey_conflict("Ctrl+Alt+X", &HotkeyScope::App, None).unwrap();
+        let no_conflict = db
+            .check_hotkey_conflict("Ctrl+Alt+X", &HotkeyScope::App, None)
+            .unwrap();
         assert!(no_conflict.is_none());
     }
 
@@ -1663,20 +1786,27 @@ mod tests {
             hotkey_filter: None,
             hotkey_position: None,
             hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
         };
         db.create_entry(&input).unwrap();
 
         // Export
         let export_data = db.export_all().unwrap();
         assert_eq!(export_data.entries.len(), 1);
-        assert_eq!(export_data.schema_version, ExportData::CURRENT_SCHEMA_VERSION);
+        assert_eq!(
+            export_data.schema_version,
+            ExportData::CURRENT_SCHEMA_VERSION
+        );
 
         // Create new database and import
         let dir2 = tempdir().unwrap();
         let db_path2 = dir2.path().join("test2.db");
         let db2 = Database::new(&db_path2).unwrap();
 
-        let result = db2.import_data(&export_data, ImportStrategy::AddOnly).unwrap();
+        let result = db2
+            .import_data(&export_data, ImportStrategy::AddOnly)
+            .unwrap();
         assert_eq!(result.entries_imported, 1);
 
         let entries = db2.get_all_entries().unwrap();

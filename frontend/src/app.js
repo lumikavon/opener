@@ -216,7 +216,7 @@ const translations = {
         dir: '目录路径 *（支持 ${VAR} 环境变量）',
         command: '命令 *（支持 ${VAR} 环境变量）',
         wsl_command: '命令 *（支持 ${VAR} 环境变量）',
-        script_path: '脚本路径（或使用下方内容，支持 ${VAR} 环境变量）',
+        script_path: '脚本路径（优先，支持 ${VAR} 环境变量）',
         executable: '可执行文件 *（支持 ${VAR} 环境变量）',
         target: '目标 *',
       },
@@ -226,7 +226,7 @@ const translations = {
         dir: '目录路径',
         command: '要执行的命令',
         wsl_command: '要在 WSL 中执行的命令',
-        script_path: '脚本文件路径（可选）',
+        script_path: '脚本文件路径（优先级高于脚本内容）',
         executable: '可执行文件路径',
       },
       type_options: {
@@ -576,7 +576,7 @@ const translations = {
         dir: 'Directory Path * (supports ${VAR})',
         command: 'Command * (supports ${VAR})',
         wsl_command: 'Command * (supports ${VAR})',
-        script_path: 'Script Path (or use content below, supports ${VAR})',
+        script_path: 'Script Path (priority, supports ${VAR})',
         executable: 'Executable * (supports ${VAR})',
         target: 'Target *',
       },
@@ -586,7 +586,7 @@ const translations = {
         dir: 'Path to directory',
         command: 'Command to execute',
         wsl_command: 'Command to execute in WSL',
-        script_path: 'Path to script file (optional)',
+        script_path: 'Script file path (takes priority over content)',
         executable: 'Path to executable',
       },
       type_options: {
@@ -1171,9 +1171,7 @@ async function exportData() {
     const json = await invoke('export_data');
     const filePath = await invoke('save_file_dialog', { defaultName: 'opener-config.json' });
     if (filePath) {
-      // Write file using Tauri FS API
-      const { writeTextFile } = window.__TAURI__.fs;
-      await writeTextFile(filePath, json);
+      await invoke('write_text_file', { path: filePath, contents: json });
       showToast(t('toasts.export_success'), 'success');
     }
   } catch (error) {
@@ -1186,8 +1184,7 @@ async function importData(strategy) {
   try {
     const filePath = await invoke('open_file_dialog');
     if (filePath) {
-      const { readTextFile } = window.__TAURI__.fs;
-      const jsonData = await readTextFile(filePath);
+      const jsonData = await invoke('read_text_file', { path: filePath });
       const result = await invoke('import_data', { input: { json_data: jsonData, strategy } });
       showToast(t('toasts.import_complete', {
         entries: result.entries_imported,
@@ -1849,9 +1846,10 @@ function showEditEntryModal(entry) {
   // WSL fields
   document.getElementById('entry-wsl-distro').value = entry.wsl_distro || '';
 
-  // Script content
+  // Script content and type
   if (entry.type === 'script' || entry.type === 'ahk') {
-    document.getElementById('entry-script-content').value = entry.target;
+    document.getElementById('entry-script-content').value = entry.script_content || '';
+    document.getElementById('entry-script-type').value = entry.script_type || 'powershell';
   }
 
   updateEntryFormFields();
@@ -2039,12 +2037,7 @@ function buildEntryInputFromForm() {
   const targetInput = document.getElementById('entry-target');
   let target = targetInput.value;
 
-  if ((type === 'script' || type === 'ahk') && !target.trim()) {
-    const scriptContent = document.getElementById('entry-script-content').value;
-    if (scriptContent.trim()) {
-      target = scriptContent;
-    }
-  }
+  // Script content and type are sent as separate fields (no longer merged into target)
 
   let sshHost = '';
   let sshUser = '';
@@ -2097,6 +2090,11 @@ function buildEntryInputFromForm() {
     input.hotkey_filter = document.getElementById('entry-hotkey-filter').value || null;
     input.hotkey_position = document.getElementById('entry-hotkey-position').value || 'keep';
     input.hotkey_detect_hidden = document.getElementById('entry-hotkey-detect-hidden').checked;
+  }
+
+  if (type === 'script' || type === 'ahk') {
+    input.script_content = document.getElementById('entry-script-content').value || null;
+    input.script_type = document.getElementById('entry-script-type').value || 'powershell';
   }
 
   return { input, hotkeyValue };

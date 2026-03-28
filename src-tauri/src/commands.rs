@@ -143,7 +143,10 @@ pub struct YamlImportResult {
 }
 
 #[tauri::command]
-pub fn import_entries_from_yaml(state: State<AppState>, yaml: String) -> CommandResult<YamlImportResult> {
+pub fn import_entries_from_yaml(
+    state: State<AppState>,
+    yaml: String,
+) -> CommandResult<YamlImportResult> {
     let db = state.db.lock().map_err(|_| lock_error())?;
     let parsed: YamlEntriesInput = serde_yaml::from_str(&yaml)?;
 
@@ -162,7 +165,11 @@ pub fn import_entries_from_yaml(state: State<AppState>, yaml: String) -> Command
 }
 
 #[tauri::command]
-pub fn update_entry(state: State<AppState>, id: String, input: UpdateEntryInput) -> CommandResult<Entry> {
+pub fn update_entry(
+    state: State<AppState>,
+    id: String,
+    input: UpdateEntryInput,
+) -> CommandResult<Entry> {
     let db = state.db.lock().map_err(|_| lock_error())?;
     Ok(db.update_entry(&id, &input)?)
 }
@@ -199,6 +206,8 @@ fn entry_from_input(input: CreateEntryInput) -> Entry {
     entry.hotkey_filter = input.hotkey_filter;
     entry.hotkey_position = input.hotkey_position;
     entry.hotkey_detect_hidden = input.hotkey_detect_hidden;
+    entry.script_content = input.script_content;
+    entry.script_type = input.script_type;
     entry
 }
 
@@ -347,7 +356,11 @@ pub fn update_hotkey(
 
     if accelerator_changed || scope_changed || enabled_changed {
         if let Err(error) = hotkeys::unregister_hotkey(&app, &current) {
-            log::warn!("Failed to unregister hotkey {}: {}", current.accelerator, error);
+            log::warn!(
+                "Failed to unregister hotkey {}: {}",
+                current.accelerator,
+                error
+            );
         }
 
         if let Err(error) = hotkeys::register_hotkey(&app, &updated) {
@@ -369,7 +382,11 @@ pub fn delete_hotkey(app: AppHandle, state: State<AppState>, id: String) -> Comm
     drop(db);
 
     if let Err(error) = hotkeys::unregister_hotkey(&app, &hotkey) {
-        log::warn!("Failed to unregister hotkey {}: {}", hotkey.accelerator, error);
+        log::warn!(
+            "Failed to unregister hotkey {}: {}",
+            hotkey.accelerator,
+            error
+        );
     }
     Ok(())
 }
@@ -407,7 +424,11 @@ pub fn get_settings(state: State<AppState>) -> CommandResult<Settings> {
 }
 
 #[tauri::command]
-pub fn update_settings(app: AppHandle, state: State<AppState>, settings: Settings) -> CommandResult<Settings> {
+pub fn update_settings(
+    app: AppHandle,
+    state: State<AppState>,
+    settings: Settings,
+) -> CommandResult<Settings> {
     let mut settings = settings;
     settings.app_hotkey = settings.app_hotkey.trim().to_string();
 
@@ -473,7 +494,10 @@ pub struct CreateTemplateInput {
 }
 
 #[tauri::command]
-pub fn create_template(state: State<AppState>, input: CreateTemplateInput) -> CommandResult<ScriptTemplate> {
+pub fn create_template(
+    state: State<AppState>,
+    input: CreateTemplateInput,
+) -> CommandResult<ScriptTemplate> {
     let db = state.db.lock().map_err(|_| lock_error())?;
 
     let mut template = ScriptTemplate::new(input.name, input.language, input.template_content);
@@ -621,30 +645,48 @@ pub fn close_window(window: Window) -> CommandResult<()> {
 
 #[tauri::command]
 pub async fn open_file_dialog(app: tauri::AppHandle) -> CommandResult<Option<String>> {
-    let file = app.dialog()
-        .file()
-        .blocking_pick_file();
+    let file = app.dialog().file().blocking_pick_file();
 
     Ok(file.map(|f| f.to_string()))
 }
 
 #[tauri::command]
 pub async fn open_directory_dialog(app: tauri::AppHandle) -> CommandResult<Option<String>> {
-    let dir = app.dialog()
-        .file()
-        .blocking_pick_folder();
+    let dir = app.dialog().file().blocking_pick_folder();
 
     Ok(dir.map(|d| d.to_string()))
 }
 
 #[tauri::command]
-pub async fn save_file_dialog(app: tauri::AppHandle, default_name: String) -> CommandResult<Option<String>> {
-    let file = app.dialog()
+pub async fn save_file_dialog(
+    app: tauri::AppHandle,
+    default_name: String,
+) -> CommandResult<Option<String>> {
+    let file = app
+        .dialog()
         .file()
         .set_file_name(&default_name)
         .blocking_save_file();
 
     Ok(file.map(|f| f.to_string()))
+}
+
+// ==================== File I/O Commands ====================
+
+#[tauri::command]
+pub fn write_text_file(path: String, contents: String) -> CommandResult<()> {
+    std::fs::write(&path, &contents).map_err(|e| CommandError {
+        message: format!("Failed to write file {}: {}", path, e),
+        code: "WRITE_FILE_ERROR".to_string(),
+    })
+}
+
+#[tauri::command]
+pub fn read_text_file(path: String) -> CommandResult<String> {
+    std::fs::read_to_string(&path).map_err(|e| CommandError {
+        message: format!("Failed to read file {}: {}", path, e),
+        code: "READ_FILE_ERROR".to_string(),
+    })
 }
 
 // ==================== Window Spy ====================
