@@ -1,11 +1,10 @@
 // Global hotkey registration helpers
 
 use crate::models::{Hotkey, HotkeyScope};
+use crate::windowing;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
-
-const MAIN_WINDOW_LABEL: &str = "main";
 
 #[derive(Clone, Serialize)]
 pub struct HotkeyTriggeredPayload {
@@ -67,13 +66,12 @@ pub fn register_all_hotkeys<R: Runtime>(app: &AppHandle<R>, hotkeys: &[Hotkey]) 
 }
 
 fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+    if let Some(window) = app.get_webview_window(windowing::MAIN_WINDOW_LABEL) {
         let is_visible = window.is_visible().unwrap_or(true);
         if is_visible {
-            let _ = window.hide();
+            windowing::hide_main_window(app);
         } else {
-            let _ = window.show();
-            let _ = window.set_focus();
+            windowing::show_main_window(app);
         }
     }
 }

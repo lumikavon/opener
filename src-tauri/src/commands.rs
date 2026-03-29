@@ -3,6 +3,7 @@
 use crate::database::{DatabaseError, ImportResult};
 use crate::hotkeys;
 use crate::models::*;
+use crate::windowing;
 use crate::{executor, security};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -470,6 +471,15 @@ pub fn update_settings(
     Ok(db.get_settings()?)
 }
 
+#[tauri::command]
+pub fn open_settings_window(app: AppHandle) -> CommandResult<()> {
+    windowing::open_settings_window(&app).map_err(|error| CommandError {
+        message: error.to_string(),
+        code: "WINDOW_ERROR".to_string(),
+    })?;
+    Ok(())
+}
+
 // ==================== Template Commands ====================
 
 #[tauri::command]
@@ -633,9 +643,14 @@ pub fn toggle_maximize_window(window: Window) -> CommandResult<()> {
 }
 
 #[tauri::command]
-pub fn close_window(window: Window) -> CommandResult<()> {
-    window.hide().map_err(|e| CommandError {
-        message: e.to_string(),
+pub fn close_window(app: AppHandle, window: Window) -> CommandResult<()> {
+    if windowing::is_settings_window(window.label()) {
+        windowing::close_settings_window(&app);
+        return Ok(());
+    }
+
+    window.hide().map_err(|error| CommandError {
+        message: error.to_string(),
         code: "WINDOW_ERROR".to_string(),
     })?;
     Ok(())

@@ -1,8 +1,20 @@
 // Opener - Desktop Launcher Application
 // Main Frontend Application
 
-const { invoke } = window.__TAURI__.core;
-const { listen } = window.__TAURI__.event;
+import {
+  SETTINGS_WINDOW_CLOSED_EVENT,
+  WINDOW_ROLE_MAIN,
+  WINDOW_ROLE_SETTINGS,
+  detectWindowLabel,
+  getWindowRole,
+} from './window-role.mjs';
+import { getTauriBridge } from './tauri-bridge.mjs';
+
+let invoke = async () => {
+  throw new Error('Tauri bridge is unavailable for this window.');
+};
+
+let listen = async () => () => {};
 
 // ==================== State Management ====================
 
@@ -21,6 +33,39 @@ const state = {
 
 const DEFAULT_LANGUAGE = 'zh-CN';
 const GITHUB_REPO_URL = 'https://github.com/lumikavon/opener';
+const currentWindowLabel = detectWindowLabel(window);
+const windowRole = getWindowRole(currentWindowLabel);
+
+function escapeFatalMessage(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function bindTauriBridge(globalObject = window) {
+  const bridge = getTauriBridge(globalObject);
+  if (!bridge.invoke || !bridge.listen) {
+    throw new Error('Tauri bridge is unavailable for this window.');
+  }
+
+  invoke = bridge.invoke;
+  listen = bridge.listen;
+}
+
+function showFatalInitError(error) {
+  document.body.innerHTML = `
+    <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1a2e;color:#eee;padding:24px;box-sizing:border-box;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="width:min(680px,100%);border:1px solid rgba(148,163,184,0.18);background:rgba(15,23,42,0.88);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,0.35);">
+        <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;">Failed to initialize window</h1>
+        <p style="margin:0 0 16px;color:#cbd5e1;line-height:1.6;">The settings window loaded, but its frontend initialization failed.</p>
+        <pre style="margin:0;white-space:pre-wrap;word-break:break-word;background:#020617;border-radius:12px;padding:16px;color:#f8fafc;font-size:13px;line-height:1.5;">${escapeFatalMessage(error?.stack || error?.message || error)}</pre>
+      </div>
+    </div>
+  `;
+}
 
 const translations = {
   'zh-CN': {
@@ -884,14 +929,49 @@ function applyTranslations(language) {
   });
 }
 
-  function applyLanguage(language) {
-    const normalized = normalizeLanguage(language || DEFAULT_LANGUAGE);
-    applyTranslations(normalized);
-    updateEntryFormFields();
-    renderEntriesList(state.entries);
-    renderTemplatesList(state.templates);
-    renderSearchResults(state.searchResults);
+function applyLanguage(language) {
+  const normalized = normalizeLanguage(language || DEFAULT_LANGUAGE);
+  applyTranslations(normalized);
+  updateEntryFormFields();
+  renderEntriesList(state.entries);
+  renderTemplatesList(state.templates);
+  renderSearchResults(state.searchResults);
+}
+
+function isMainWindowRole() {
+  return windowRole === WINDOW_ROLE_MAIN;
+}
+
+function isSettingsWindowRole() {
+  return windowRole === WINDOW_ROLE_SETTINGS;
+}
+
+function setWindowLayoutForRole(role) {
+  const mainRoot = document.getElementById('main-window-root');
+  const settingsRoot = document.getElementById('settings-window-root');
+
+  if (mainRoot) {
+    mainRoot.classList.toggle('hidden', role !== WINDOW_ROLE_MAIN);
   }
+
+  if (settingsRoot) {
+    settingsRoot.classList.toggle('hidden', role !== WINDOW_ROLE_SETTINGS);
+  }
+}
+
+function hasOpenOverlayModal() {
+  return [
+    'about-modal',
+    'help-modal',
+    'entry-modal',
+    'template-modal',
+    'use-template-modal',
+    'confirm-modal',
+  ].some((id) => {
+    const element = document.getElementById(id);
+    return element && !element.classList.contains('hidden');
+  });
+}
 
 function getEntryTypeLabel(type) {
   const labels = getTranslationTable().entry?.type_labels || {};
@@ -1588,6 +1668,10 @@ function updateSettingsUI(settings) {
 // ==================== Event Handlers ====================
 
 async function handleSearch(query) {
+  if (!isMainWindowRole()) {
+    return;
+  }
+
   state.selectedIndex = 0;
 
   if (query.trim() === '') {
@@ -1676,6 +1760,10 @@ function testEntry(id) {
 }
 
 function handleKeyboardNavigation(e) {
+  if (!isMainWindowRole()) {
+    return;
+  }
+
   const searchInput = document.getElementById('search-input');
   const isSearchFocused = document.activeElement === searchInput;
 
@@ -1717,6 +1805,7 @@ function handleKeyboardNavigation(e) {
 }
 
 function focusSearchInput() {
+  if (!isMainWindowRole()) return;
   const searchInput = document.getElementById('search-input');
   if (!searchInput) return;
   if (document.activeElement === searchInput) return;
@@ -1724,6 +1813,7 @@ function focusSearchInput() {
 }
 
 function shouldFocusSearchOnClick(target) {
+  if (!isMainWindowRole()) return false;
   if (!target) return false;
   if (target.closest('.modal')) return false;
   if (target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return false;
@@ -1739,13 +1829,20 @@ function scrollToSelected() {
 
 // ==================== Modal Handlers ====================
 
-function showSettingsModal() {
-  document.getElementById('settings-modal').classList.remove('hidden');
-  switchSettingsTab('entries');
+async function showSettingsModal() {
+  try {
+    await invoke('open_settings_window');
+  } catch (error) {
+    console.error('Failed to open settings window:', error);
+  }
 }
 
-function closeSettingsModal() {
-  document.getElementById('settings-modal').classList.add('hidden');
+async function closeSettingsModal() {
+  try {
+    await invoke('close_window');
+  } catch (error) {
+    console.error('Failed to close settings window:', error);
+  }
 }
 
 function showAboutModal() {
@@ -2458,7 +2555,6 @@ async function handleUseTemplateFormSubmit(e) {
 }
 
 function closeAllModals() {
-  document.getElementById('settings-modal').classList.add('hidden');
   document.getElementById('about-modal').classList.add('hidden');
   document.getElementById('help-modal').classList.add('hidden');
   document.getElementById('entry-modal').classList.add('hidden');
@@ -2803,197 +2899,210 @@ async function loadAllData() {
   ]);
 }
 
+async function refreshMainWindowAfterSettingsClose() {
+  const searchInput = document.getElementById('search-input');
+  const currentQuery = searchInput?.value || '';
+
+  await loadAllData();
+  applyLanguage(state.settings?.language || DEFAULT_LANGUAGE);
+  await handleSearch(currentQuery);
+  focusSearchInput();
+}
+
 // ==================== Initialization ====================
 
 async function init() {
-  applyTranslations(DEFAULT_LANGUAGE);
+  try {
+    bindTauriBridge(window);
+    applyTranslations(DEFAULT_LANGUAGE);
+    setWindowLayoutForRole(windowRole);
 
-  // Load all data
-  await loadAllData();
-
-  applyLanguage(state.settings?.language || DEFAULT_LANGUAGE);
-  await registerGlobalHotkeyListener();
-
-  // Initial search (show all entries)
-  handleSearch('');
-
-  // Setup search input
-  const searchInput = document.getElementById('search-input');
-  const debouncedSearch = debounce(handleSearch, state.settings?.search_debounce_ms || 150);
-
-  searchInput.addEventListener('input', (e) => {
-    debouncedSearch(e.target.value);
-  });
-
-  // Focus search input by default
-  requestAnimationFrame(() => {
-    focusSearchInput();
-  });
-
-  window.addEventListener('focus', () => {
-    focusSearchInput();
-  });
-
-  document.addEventListener('mousedown', (e) => {
-    if (shouldFocusSearchOnClick(e.target)) {
-      focusSearchInput();
+    await loadAllData();
+    applyLanguage(state.settings?.language || DEFAULT_LANGUAGE);
+    if (isSettingsWindowRole()) {
+      switchSettingsTab(state.currentTab || 'entries');
     }
-  });
 
-  // Setup keyboard navigation
-  document.addEventListener('keydown', handleKeyboardNavigation);
+    if (isMainWindowRole()) {
+      await registerGlobalHotkeyListener();
+      await listen(SETTINGS_WINDOW_CLOSED_EVENT, async () => {
+        await refreshMainWindowAfterSettingsClose();
+      });
 
-  // Window controls
-  document.getElementById('btn-minimize').addEventListener('click', () => {
-    invoke('minimize_window');
-  });
+      handleSearch('');
 
-  document.getElementById('btn-maximize').addEventListener('click', () => {
-    invoke('toggle_maximize_window');
-  });
+      const searchInput = document.getElementById('search-input');
+      const debouncedSearch = debounce(handleSearch, state.settings?.search_debounce_ms || 150);
+      searchInput.addEventListener('input', (e) => {
+        debouncedSearch(e.target.value);
+      });
 
-  document.getElementById('btn-close').addEventListener('click', () => {
-    invoke('close_window');
-  });
+      requestAnimationFrame(() => {
+        focusSearchInput();
+      });
 
-  document.getElementById('btn-github').addEventListener('click', () => {
-    openExternalLink(GITHUB_REPO_URL);
-  });
+      window.addEventListener('focus', () => {
+        focusSearchInput();
+      });
 
-  document.getElementById('btn-about').addEventListener('click', showAboutModal);
-  document.getElementById('btn-close-about').addEventListener('click', closeAboutModal);
-  document.getElementById('btn-help').addEventListener('click', showHelpModal);
-  document.getElementById('btn-close-help').addEventListener('click', closeHelpModal);
+      document.addEventListener('mousedown', (e) => {
+        if (shouldFocusSearchOnClick(e.target)) {
+          focusSearchInput();
+        }
+      });
 
-  // Settings modal
-  document.getElementById('btn-settings').addEventListener('click', showSettingsModal);
-  document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
+      document.addEventListener('keydown', handleKeyboardNavigation);
 
-  // Settings tabs
-  document.querySelectorAll('.sidebar-item').forEach(item => {
-    item.addEventListener('click', () => {
-      switchSettingsTab(item.dataset.tab);
-    });
-  });
+      document.getElementById('btn-minimize').addEventListener('click', () => {
+        invoke('minimize_window');
+      });
 
-  const entriesSearchInput = document.getElementById('entries-search-input');
-  if (entriesSearchInput) {
-    entriesSearchInput.value = state.entriesSearchQuery;
-    entriesSearchInput.addEventListener('input', handleEntriesSearchInput);
-  }
+      document.getElementById('btn-maximize').addEventListener('click', () => {
+        invoke('toggle_maximize_window');
+      });
 
-  const entriesSelectAll = document.getElementById('entries-select-all');
-  if (entriesSelectAll) {
-    entriesSelectAll.addEventListener('change', (e) => {
-      handleSelectAllEntries(e.target.checked);
-    });
-  }
+      document.getElementById('btn-close').addEventListener('click', () => {
+        invoke('close_window');
+      });
 
-  const deleteSelectedEntriesBtn = document.getElementById('btn-delete-selected-entries');
-  if (deleteSelectedEntriesBtn) {
-    deleteSelectedEntriesBtn.addEventListener('click', handleDeleteSelectedEntries);
-  }
-
-  // Entry modal
-  document.getElementById('btn-add-entry').addEventListener('click', showAddEntryModal);
-  document.getElementById('btn-close-entry-modal').addEventListener('click', closeEntryModal);
-  document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
-  document.getElementById('btn-test-entry').addEventListener('click', handleEntryFormTest);
-  document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
-  document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
-  document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);
-  document.getElementById('entry-script-content').addEventListener('input', syncEntryFormRequirements);
-  document.getElementById('entry-hotkey-position').addEventListener('change', (e) => {
-    e.target.dataset.touched = 'true';
-  });
-  document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
-    e.target.dataset.touched = 'true';
-  });
-  document.getElementById('btn-window-spy').addEventListener('click', handleOpenWindowSpy);
-  document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
-  document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
-  document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
-  document.getElementById('btn-clear-entry-hotkey').addEventListener('click', () => {
-    document.getElementById('entry-hotkey').value = '';
-  });
-  setupHotkeyRecording('entry-hotkey');
-  setupHotkeyRecording('setting-app-hotkey', handleSettingsChange);
-  document.getElementById('btn-clear-app-hotkey').addEventListener('click', () => {
-    document.getElementById('setting-app-hotkey').value = '';
-    handleSettingsChange();
-  });
-
-  // Template modal
-  const addTemplateButton = document.getElementById('btn-add-template');
-  if (addTemplateButton) {
-    addTemplateButton.addEventListener('click', showAddTemplateModal);
-  }
-  const closeTemplateButton = document.getElementById('btn-close-template-modal');
-  if (closeTemplateButton) {
-    closeTemplateButton.addEventListener('click', closeTemplateModal);
-  }
-  const cancelTemplateButton = document.getElementById('btn-cancel-template');
-  if (cancelTemplateButton) {
-    cancelTemplateButton.addEventListener('click', closeTemplateModal);
-  }
-  const templateForm = document.getElementById('template-form');
-  if (templateForm) {
-    templateForm.addEventListener('submit', handleTemplateFormSubmit);
-  }
-  const addVariableButton = document.getElementById('btn-add-variable');
-  if (addVariableButton) {
-    addVariableButton.addEventListener('click', addTemplateVariable);
-  }
-  setupTemplateVariableActions();
-
-  // Use template modal
-  document.getElementById('btn-close-use-template').addEventListener('click', closeUseTemplateModal);
-  document.getElementById('btn-cancel-use-template').addEventListener('click', closeUseTemplateModal);
-  document.getElementById('use-template-form').addEventListener('submit', handleUseTemplateFormSubmit);
-
-  // Confirm modal
-  document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirmModal);
-
-  // Import/Export
-  document.getElementById('btn-export').addEventListener('click', exportData);
-  document.getElementById('btn-import').addEventListener('click', () => {
-    const strategy = document.getElementById('import-strategy').value;
-    importData(strategy);
-  });
-
-  // Settings changes
-  document.getElementById('setting-icon-size').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-sort-strategy').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-max-results').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-show-path').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-show-type').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-show-desc').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-confirm-dangerous').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-auto-launch').addEventListener('change', handleSettingsChange);
-  document.getElementById('setting-language').addEventListener('change', handleSettingsChange);
-
-  // Block Alt+Space from opening the system menu inside the app
-  document.addEventListener('keydown', (e) => {
-    if (e.altKey && (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar')) {
-      e.preventDefault();
-      e.stopPropagation();
-      return;
+      document.getElementById('btn-help').addEventListener('click', showHelpModal);
+      document.getElementById('btn-close-help').addEventListener('click', closeHelpModal);
+      document.getElementById('btn-settings').addEventListener('click', showSettingsModal);
     }
-    if (e.key === 'Escape') {
-      closeAllModals();
-    }
-  }, true);
 
-  // Close modals on overlay click
-  document.querySelectorAll('.modal-overlay').forEach(overlay => {
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        closeAllModals();
+    if (isSettingsWindowRole()) {
+      document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
+    }
+
+    // Settings tabs
+    if (isSettingsWindowRole()) {
+      document.querySelectorAll('.sidebar-item').forEach(item => {
+        item.addEventListener('click', () => {
+          switchSettingsTab(item.dataset.tab);
+        });
+      });
+
+      const entriesSearchInput = document.getElementById('entries-search-input');
+      if (entriesSearchInput) {
+        entriesSearchInput.value = state.entriesSearchQuery;
+        entriesSearchInput.addEventListener('input', handleEntriesSearchInput);
       }
-    });
-  });
 
-  console.log('Opener initialized');
+      const entriesSelectAll = document.getElementById('entries-select-all');
+      if (entriesSelectAll) {
+        entriesSelectAll.addEventListener('change', (e) => {
+          handleSelectAllEntries(e.target.checked);
+        });
+      }
+
+      const deleteSelectedEntriesBtn = document.getElementById('btn-delete-selected-entries');
+      if (deleteSelectedEntriesBtn) {
+        deleteSelectedEntriesBtn.addEventListener('click', handleDeleteSelectedEntries);
+      }
+
+      document.getElementById('btn-add-entry').addEventListener('click', showAddEntryModal);
+      document.getElementById('btn-close-entry-modal').addEventListener('click', closeEntryModal);
+      document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
+      document.getElementById('btn-test-entry').addEventListener('click', handleEntryFormTest);
+      document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
+      document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
+      document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);
+      document.getElementById('entry-script-content').addEventListener('input', syncEntryFormRequirements);
+      document.getElementById('entry-hotkey-position').addEventListener('change', (e) => {
+        e.target.dataset.touched = 'true';
+      });
+      document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
+        e.target.dataset.touched = 'true';
+      });
+      document.getElementById('btn-window-spy').addEventListener('click', handleOpenWindowSpy);
+      document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
+      document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
+      document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
+      document.getElementById('btn-clear-entry-hotkey').addEventListener('click', () => {
+        document.getElementById('entry-hotkey').value = '';
+      });
+      setupHotkeyRecording('entry-hotkey');
+      setupHotkeyRecording('setting-app-hotkey', handleSettingsChange);
+      document.getElementById('btn-clear-app-hotkey').addEventListener('click', () => {
+        document.getElementById('setting-app-hotkey').value = '';
+        handleSettingsChange();
+      });
+
+      const addTemplateButton = document.getElementById('btn-add-template');
+      if (addTemplateButton) {
+        addTemplateButton.addEventListener('click', showAddTemplateModal);
+      }
+      const closeTemplateButton = document.getElementById('btn-close-template-modal');
+      if (closeTemplateButton) {
+        closeTemplateButton.addEventListener('click', closeTemplateModal);
+      }
+      const cancelTemplateButton = document.getElementById('btn-cancel-template');
+      if (cancelTemplateButton) {
+        cancelTemplateButton.addEventListener('click', closeTemplateModal);
+      }
+      const templateForm = document.getElementById('template-form');
+      if (templateForm) {
+        templateForm.addEventListener('submit', handleTemplateFormSubmit);
+      }
+      const addVariableButton = document.getElementById('btn-add-variable');
+      if (addVariableButton) {
+        addVariableButton.addEventListener('click', addTemplateVariable);
+      }
+      setupTemplateVariableActions();
+
+      document.getElementById('btn-close-use-template').addEventListener('click', closeUseTemplateModal);
+      document.getElementById('btn-cancel-use-template').addEventListener('click', closeUseTemplateModal);
+      document.getElementById('use-template-form').addEventListener('submit', handleUseTemplateFormSubmit);
+
+      document.getElementById('btn-export').addEventListener('click', exportData);
+      document.getElementById('btn-import').addEventListener('click', () => {
+        const strategy = document.getElementById('import-strategy').value;
+        importData(strategy);
+      });
+
+      document.getElementById('setting-icon-size').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-sort-strategy').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-max-results').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-show-path').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-show-type').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-show-desc').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-confirm-dangerous').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-auto-launch').addEventListener('change', handleSettingsChange);
+      document.getElementById('setting-language').addEventListener('change', handleSettingsChange);
+    }
+
+    document.getElementById('btn-confirm-cancel').addEventListener('click', closeConfirmModal);
+
+    // Block Alt+Space from opening the system menu inside the app
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.code === 'Space' || e.key === ' ' || e.key === 'Spacebar')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (hasOpenOverlayModal()) {
+          closeAllModals();
+        } else if (isSettingsWindowRole()) {
+          closeSettingsModal();
+        }
+      }
+    }, true);
+
+    // Close modals on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          closeAllModals();
+        }
+      });
+    });
+
+    console.log('Opener initialized');
+  } catch (error) {
+    console.error('Failed to initialize Opener:', error);
+    showFatalInitError(error);
+  }
 }
 
 // Start the application

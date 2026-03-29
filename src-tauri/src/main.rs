@@ -9,6 +9,7 @@ mod executor;
 mod hotkeys;
 mod models;
 mod security;
+mod windowing;
 
 use commands::AppState;
 use models::Settings;
@@ -17,7 +18,6 @@ use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 
-const MAIN_WINDOW_LABEL: &str = "main";
 const TRAY_SHOW_ID: &str = "tray_show";
 const TRAY_HIDE_ID: &str = "tray_hide";
 const TRAY_QUIT_ID: &str = "tray_quit";
@@ -45,51 +45,6 @@ fn tray_labels(language: &str) -> TrayLabels {
     }
 }
 
-fn show_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = window.show();
-        let _ = window.set_focus();
-    }
-}
-
-fn hide_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
-        let _ = window.hide();
-    }
-}
-
-#[cfg(windows)]
-fn remove_system_menu(window: &tauri::WebviewWindow) {
-    use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-    use std::ptr;
-    use winapi::shared::windef::HWND;
-    use winapi::um::winuser::{
-        GetWindowLongW, SetWindowLongW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED, SWP_NOMOVE,
-        SWP_NOOWNERZORDER, SWP_NOSIZE, SWP_NOZORDER, WS_SYSMENU,
-    };
-
-    let hwnd = match window.window_handle().ok().map(|handle| handle.as_raw()) {
-        Some(RawWindowHandle::Win32(handle)) => handle.hwnd.get() as HWND,
-        _ => return,
-    };
-
-    unsafe {
-        let style = GetWindowLongW(hwnd, GWL_STYLE);
-        if style & (WS_SYSMENU as i32) != 0 {
-            SetWindowLongW(hwnd, GWL_STYLE, style & !(WS_SYSMENU as i32));
-            SetWindowPos(
-                hwnd,
-                ptr::null_mut(),
-                0,
-                0,
-                0,
-                0,
-                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER,
-            );
-        }
-    }
-}
-
 fn setup_tray(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text(TRAY_SHOW_ID, labels.show)
@@ -103,8 +58,8 @@ fn setup_tray(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
         .tooltip("Opener")
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().0.as_str() {
-            TRAY_SHOW_ID => show_main_window(app),
-            TRAY_HIDE_ID => hide_main_window(app),
+            TRAY_SHOW_ID => windowing::show_main_window(app),
+            TRAY_HIDE_ID => windowing::hide_main_window(app),
             TRAY_QUIT_ID => app.exit(0),
             _ => {}
         })
@@ -114,7 +69,7 @@ fn setup_tray(app: &tauri::AppHandle, labels: TrayLabels) -> tauri::Result<()> {
                 ..
             } = event
             {
-                show_main_window(tray.app_handle());
+                windowing::show_main_window(tray.app_handle());
             }
         });
 
@@ -169,10 +124,10 @@ fn main() {
 
             let app_handle = app.handle();
             setup_tray(&app_handle, tray_label_set)?;
-            if let Some(window) = app_handle.get_webview_window(MAIN_WINDOW_LABEL) {
+            if let Some(window) = app_handle.get_webview_window(windowing::MAIN_WINDOW_LABEL) {
                 let window_clone = window.clone();
                 #[cfg(windows)]
-                remove_system_menu(&window);
+                windowing::remove_system_menu(&window);
                 window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         let _ = window_clone.hide();
@@ -180,6 +135,8 @@ fn main() {
                     }
                 });
             }
+
+            windowing::prepare_settings_window(&app_handle);
 
             if let Err(error) = hotkeys::register_app_hotkey(&app_handle, &settings.app_hotkey) {
                 log::warn!(
@@ -223,6 +180,7 @@ fn main() {
             // Settings commands
             commands::get_settings,
             commands::update_settings,
+            commands::open_settings_window,
             // Script template commands
             commands::get_all_templates,
             commands::get_template,

@@ -5,6 +5,7 @@ pub mod executor;
 pub mod hotkeys;
 pub mod models;
 pub mod security;
+pub mod windowing;
 
 use std::sync::Mutex;
 
