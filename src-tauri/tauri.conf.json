@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Opener",
         "url": "index.html",
         "width": 600,
@@ -27,6 +28,7 @@
       },
       {
         "label": "settings",
+        "create": false,
         "title": "Settings",
         "url": "index.html?window=settings",
         "width": 960,

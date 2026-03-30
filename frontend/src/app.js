@@ -8,6 +8,7 @@ import {
   detectWindowLabel,
   getWindowRole,
 } from './window-role.mjs';
+import { getEntryFormRequirements } from './entry-form-requirements.mjs';
 import { getTauriBridge } from './tauri-bridge.mjs';
 
 let invoke = async () => {
@@ -1969,36 +1970,30 @@ function syncEntryFormRequirements() {
   const hotkeyFilterInput = document.getElementById('entry-hotkey-filter');
   const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
   const hotkeyDetectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+  const requirements = getEntryFormRequirements({
+    type,
+    targetValue: targetInput.value,
+    scriptContentValue: scriptContentInput.value,
+  });
 
-  const isSsh = type === 'ssh';
-  const isScript = type === 'script' || type === 'ahk';
-  const isHotkeyApp = type === 'hotkey_app';
+  targetInput.disabled = requirements.targetDisabled;
+  targetInput.required = requirements.targetRequired;
+  workdirInput.required = requirements.workdirRequired;
+  hotkeyInput.required = requirements.hotkeyRequired;
 
-  targetInput.disabled = isSsh;
-  targetInput.required = !isSsh && !isScript;
-  workdirInput.required = isHotkeyApp;
-  hotkeyInput.required = isHotkeyApp;
+  sshHostInput.disabled = requirements.sshHostDisabled;
+  sshHostInput.required = requirements.sshHostRequired;
+  sshUserInput.disabled = requirements.sshUserDisabled;
+  sshPortInput.disabled = requirements.sshPortDisabled;
 
-  sshHostInput.disabled = !isSsh;
-  sshHostInput.required = isSsh;
-  sshUserInput.disabled = !isSsh;
-  sshPortInput.disabled = !isSsh;
+  scriptContentInput.disabled = requirements.scriptContentDisabled;
+  scriptContentInput.required = requirements.scriptContentRequired;
 
-  scriptContentInput.disabled = !isScript;
-  if (isScript) {
-    const hasTarget = targetInput.value.trim().length > 0;
-    const hasScript = scriptContentInput.value.trim().length > 0;
-    targetInput.required = !hasScript;
-    scriptContentInput.required = !hasTarget;
-  } else {
-    scriptContentInput.required = false;
-  }
-
-  hotkeyFilterInput.disabled = !isHotkeyApp;
-  hotkeyFilterInput.required = isHotkeyApp;
-  hotkeyPositionInput.disabled = !isHotkeyApp;
-  hotkeyPositionInput.required = isHotkeyApp;
-  hotkeyDetectHiddenInput.disabled = !isHotkeyApp;
+  hotkeyFilterInput.disabled = requirements.hotkeyFilterDisabled;
+  hotkeyFilterInput.required = requirements.hotkeyFilterRequired;
+  hotkeyPositionInput.disabled = requirements.hotkeyPositionDisabled;
+  hotkeyPositionInput.required = requirements.hotkeyPositionRequired;
+  hotkeyDetectHiddenInput.disabled = requirements.hotkeyDetectHiddenDisabled;
 }
 
 function updateEntryFormFields() {

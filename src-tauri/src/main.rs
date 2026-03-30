@@ -120,9 +120,22 @@ fn main() {
                 db: std::sync::Mutex::new(db),
             });
 
-            hotkeys::register_all_hotkeys(&app.handle(), &hotkeys);
-
             let app_handle = app.handle();
+            if app_handle
+                .get_webview_window(windowing::MAIN_WINDOW_LABEL)
+                .is_none()
+            {
+                windowing::create_main_window(&app_handle)?;
+            }
+            if app_handle
+                .get_webview_window(windowing::SETTINGS_WINDOW_LABEL)
+                .is_none()
+            {
+                windowing::create_settings_window(&app_handle)?;
+            }
+
+            hotkeys::register_all_hotkeys(&app_handle, &hotkeys);
+
             setup_tray(&app_handle, tray_label_set)?;
             if let Some(window) = app_handle.get_webview_window(windowing::MAIN_WINDOW_LABEL) {
                 let window_clone = window.clone();
