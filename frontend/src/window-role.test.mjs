@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  ENTRY_EDITOR_WINDOW_LABEL,
   WINDOW_ROLE_MAIN,
+  WINDOW_ROLE_ENTRY_EDITOR,
   WINDOW_ROLE_SETTINGS,
   detectWindowLabel,
   getWindowRole,
@@ -16,6 +18,10 @@ test('getWindowRole returns settings role for settings window label', () => {
 test('getWindowRole falls back to main role for unknown labels', () => {
   assert.equal(getWindowRole('main'), WINDOW_ROLE_MAIN);
   assert.equal(getWindowRole('anything-else'), WINDOW_ROLE_MAIN);
+});
+
+test('getWindowRole returns entry editor role for entry-editor window label', () => {
+  assert.equal(getWindowRole(ENTRY_EDITOR_WINDOW_LABEL), WINDOW_ROLE_ENTRY_EDITOR);
 });
 
 test('detectWindowLabel prefers current window label when available', () => {
@@ -55,6 +61,17 @@ test('detectWindowLabel falls back to the window query parameter', () => {
       },
     }),
     'settings'
+  );
+});
+
+test('detectWindowLabel supports entry-editor query parameter', () => {
+  assert.equal(
+    detectWindowLabel({
+      location: {
+        search: '?window=entry-editor',
+      },
+    }),
+    'entry-editor'
   );
 });
 

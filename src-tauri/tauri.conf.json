@@ -42,6 +42,23 @@
         "maximizable": false,
         "minimizable": false,
         "visible": false
+      },
+      {
+        "label": "entry-editor",
+        "create": false,
+        "title": "Entry Editor",
+        "url": "index.html?window=entry-editor",
+        "width": 760,
+        "height": 760,
+        "resizable": true,
+        "decorations": false,
+        "transparent": false,
+        "center": true,
+        "minWidth": 620,
+        "minHeight": 620,
+        "maximizable": false,
+        "minimizable": false,
+        "visible": false
       }
     ],
     "security": {

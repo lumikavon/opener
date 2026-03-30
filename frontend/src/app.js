@@ -2,12 +2,26 @@
 // Main Frontend Application
 
 import {
+  ENTRY_EDITOR_OPENED_EVENT,
+  ENTRY_EDITOR_SAVED_EVENT,
   SETTINGS_WINDOW_CLOSED_EVENT,
+  WINDOW_ROLE_ENTRY_EDITOR,
   WINDOW_ROLE_MAIN,
   WINDOW_ROLE_SETTINGS,
   detectWindowLabel,
   getWindowRole,
 } from './window-role.mjs';
+import {
+  ENTRY_EDITOR_MODE_CREATE,
+  ENTRY_EDITOR_MODE_EDIT,
+  normalizeEntryEditorContext,
+} from './entry-editor-context.mjs';
+import {
+  ALL_ENTRY_TYPE_FILTER,
+  getAvailableEntryTypes,
+  getFilteredEntriesByQueryAndType,
+  normalizeEntryTypeFilter,
+} from './entry-list-filters.mjs';
 import { getEntryFormRequirements } from './entry-form-requirements.mjs';
 import { getTauriBridge } from './tauri-bridge.mjs';
 
@@ -29,6 +43,7 @@ const state = {
   currentTab: 'entries',
   searchDebounceTimer: null,
   entriesSearchQuery: '',
+  entriesTypeFilter: ALL_ENTRY_TYPE_FILTER,
   selectedEntryIds: new Set(),
 };
 
@@ -61,7 +76,7 @@ function showFatalInitError(error) {
     <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#1a1a2e;color:#eee;padding:24px;box-sizing:border-box;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
       <div style="width:min(680px,100%);border:1px solid rgba(148,163,184,0.18);background:rgba(15,23,42,0.88);border-radius:16px;padding:24px;box-shadow:0 24px 60px rgba(0,0,0,0.35);">
         <h1 style="margin:0 0 12px;font-size:20px;line-height:1.3;">Failed to initialize window</h1>
-        <p style="margin:0 0 16px;color:#cbd5e1;line-height:1.6;">The settings window loaded, but its frontend initialization failed.</p>
+        <p style="margin:0 0 16px;color:#cbd5e1;line-height:1.6;">The window loaded, but its frontend initialization failed.</p>
         <pre style="margin:0;white-space:pre-wrap;word-break:break-word;background:#020617;border-radius:12px;padding:16px;color:#f8fafc;font-size:13px;line-height:1.5;">${escapeFatalMessage(error?.stack || error?.message || error)}</pre>
       </div>
     </div>
@@ -102,6 +117,7 @@ const translations = {
         add: '新增条目',
         empty: '暂无条目。点击“新增条目”创建。',
         search_placeholder: '搜索条目...',
+        filter_all: '全部',
         no_match: '没有匹配的条目。',
         select_all: '全选',
         selected_count: '已选择 {{count}} 个',
@@ -462,6 +478,7 @@ const translations = {
         add: 'Add Entry',
         empty: 'No entries yet. Click "Add Entry" to create one.',
         search_placeholder: 'Search entries...',
+        filter_all: 'All',
         no_match: 'No matching entries.',
         select_all: 'Select all',
         selected_count: 'Selected {{count}} items',
@@ -947,9 +964,14 @@ function isSettingsWindowRole() {
   return windowRole === WINDOW_ROLE_SETTINGS;
 }
 
+function isEntryEditorWindowRole() {
+  return windowRole === WINDOW_ROLE_ENTRY_EDITOR;
+}
+
 function setWindowLayoutForRole(role) {
   const mainRoot = document.getElementById('main-window-root');
   const settingsRoot = document.getElementById('settings-window-root');
+  const entryEditorRoot = document.getElementById('entry-editor-window-root');
 
   if (mainRoot) {
     mainRoot.classList.toggle('hidden', role !== WINDOW_ROLE_MAIN);
@@ -958,13 +980,16 @@ function setWindowLayoutForRole(role) {
   if (settingsRoot) {
     settingsRoot.classList.toggle('hidden', role !== WINDOW_ROLE_SETTINGS);
   }
+
+  if (entryEditorRoot) {
+    entryEditorRoot.classList.toggle('hidden', role !== WINDOW_ROLE_ENTRY_EDITOR);
+  }
 }
 
 function hasOpenOverlayModal() {
   return [
     'about-modal',
     'help-modal',
-    'entry-modal',
     'template-modal',
     'use-template-modal',
     'confirm-modal',
@@ -1004,6 +1029,16 @@ async function getAllEntries() {
     console.error('Failed to get entries:', error);
     showToast(t('toasts.load_entries_failed'), 'error');
     return [];
+  }
+}
+
+async function getEntryById(id) {
+  try {
+    return await invoke('get_entry', { id });
+  } catch (error) {
+    console.error('Failed to get entry:', error);
+    showToast(t('toasts.load_entries_failed'), 'error');
+    return null;
   }
 }
 
@@ -1358,22 +1393,49 @@ function renderSearchResults(results, options = {}) {
 }
 
 function getFilteredEntries(entries) {
-  const query = state.entriesSearchQuery.trim().toLowerCase();
-  if (!query) {
-    return entries;
+  state.entriesTypeFilter = normalizeEntryTypeFilter(state.entriesTypeFilter, entries);
+  return getFilteredEntriesByQueryAndType(entries, {
+    query: state.entriesSearchQuery,
+    typeFilter: state.entriesTypeFilter,
+  });
+}
+
+function renderEntriesTypeFilters(entries) {
+  const container = document.getElementById('entries-type-filters');
+  if (!container) {
+    return;
   }
 
-  return entries.filter(entry => {
-    const haystack = [
-      entry.name,
-      entry.target,
-      entry.description,
-      entry.tags,
-      entry.type,
-      entry.hotkey_filter,
-      entry.hotkey_position,
-    ].filter(Boolean).join(' ').toLowerCase();
-    return haystack.includes(query);
+  const availableTypes = getAvailableEntryTypes(entries);
+  state.entriesTypeFilter = normalizeEntryTypeFilter(state.entriesTypeFilter, entries);
+  const filterTypes = [ALL_ENTRY_TYPE_FILTER, ...availableTypes];
+
+  container.innerHTML = filterTypes.map((type) => {
+    const isActive = state.entriesTypeFilter === type;
+    const label = type === ALL_ENTRY_TYPE_FILTER
+      ? t('settings.entries.filter_all')
+      : getEntryTypeLabel(type);
+    const stateClass = isActive
+      ? 'border-primary-400/60 bg-primary-500/15 text-primary-200'
+      : 'border-gray-700 bg-gray-800 text-gray-400 hover:border-gray-500 hover:text-gray-200';
+
+    return `
+      <button
+        type="button"
+        class="rounded-full border px-3 py-1 text-xs transition-colors ${stateClass}"
+        data-entry-type-filter="${type}"
+        aria-pressed="${isActive}"
+      >
+        ${escapeHtml(label)}
+      </button>
+    `;
+  }).join('');
+
+  container.querySelectorAll('[data-entry-type-filter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.entriesTypeFilter = button.dataset.entryTypeFilter || ALL_ENTRY_TYPE_FILTER;
+      renderEntriesList(state.entries);
+    });
   });
 }
 
@@ -1479,6 +1541,7 @@ async function handleDeleteSelectedEntries() {
 
 function renderEntriesList(entries) {
   const container = document.getElementById('entries-list');
+  renderEntriesTypeFilters(entries);
   pruneSelectedEntries(entries);
   const filteredEntries = getFilteredEntries(entries);
 
@@ -1839,6 +1902,11 @@ async function showSettingsModal() {
 }
 
 async function closeSettingsModal() {
+  if (isSettingsWindowRole()) {
+    state.entriesTypeFilter = ALL_ENTRY_TYPE_FILTER;
+    renderEntriesList(state.entries);
+  }
+
   try {
     await invoke('close_window');
   } catch (error) {
@@ -1886,21 +1954,48 @@ function switchSettingsTab(tabName) {
     }
   }
 
-function showAddEntryModal() {
-  document.getElementById('entry-modal-title').textContent = t('entry.modal_add');
-  document.getElementById('entry-form').reset();
-  document.getElementById('entry-id').value = '';
-  document.getElementById('entry-hotkey').value = '';
-  const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
-  if (hotkeyPositionInput) hotkeyPositionInput.dataset.touched = '';
-  const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
-  if (detectHiddenInput) detectHiddenInput.dataset.touched = '';
-  updateEntryFormFields();
-  document.getElementById('entry-modal').classList.remove('hidden');
+function setEntryEditorTitles(mode) {
+  const translationKey = mode === ENTRY_EDITOR_MODE_EDIT ? 'entry.modal_edit' : 'entry.modal_add';
+  const title = t(translationKey);
+  const modalTitle = document.getElementById('entry-modal-title');
+  const windowTitle = document.getElementById('entry-editor-window-title');
+
+  if (modalTitle) {
+    modalTitle.textContent = title;
+  }
+
+  if (windowTitle) {
+    windowTitle.textContent = title;
+  }
 }
 
-function showEditEntryModal(entry) {
-  document.getElementById('entry-modal-title').textContent = t('entry.modal_edit');
+function resetEntryEditorHotkeyFieldState() {
+  const hotkeyPositionInput = document.getElementById('entry-hotkey-position');
+  if (hotkeyPositionInput) {
+    hotkeyPositionInput.dataset.touched = '';
+  }
+
+  const detectHiddenInput = document.getElementById('entry-hotkey-detect-hidden');
+  if (detectHiddenInput) {
+    detectHiddenInput.dataset.touched = '';
+  }
+}
+
+function applyCreateEntryEditorFormState() {
+  document.getElementById('entry-form').reset();
+  document.getElementById('entry-id').value = '';
+  document.getElementById('entry-type').value = 'app';
+  document.getElementById('entry-ssh-port').value = 22;
+  document.getElementById('entry-script-type').value = 'powershell';
+  document.getElementById('entry-hotkey').value = '';
+  resetEntryEditorHotkeyFieldState();
+  setEntryEditorTitles(ENTRY_EDITOR_MODE_CREATE);
+  updateEntryFormFields();
+}
+
+function applyEditEntryEditorFormState(entry) {
+  document.getElementById('entry-form').reset();
+  resetEntryEditorHotkeyFieldState();
   document.getElementById('entry-id').value = entry.id;
   document.getElementById('entry-name').value = entry.name;
   document.getElementById('entry-type').value = entry.type;
@@ -1950,12 +2045,66 @@ function showEditEntryModal(entry) {
     document.getElementById('entry-script-type').value = entry.script_type || 'powershell';
   }
 
+  setEntryEditorTitles(ENTRY_EDITOR_MODE_EDIT);
   updateEntryFormFields();
-  document.getElementById('entry-modal').classList.remove('hidden');
 }
 
-function closeEntryModal() {
-  document.getElementById('entry-modal').classList.add('hidden');
+async function loadEntryEditorContext() {
+  const rawContext = await invoke('get_entry_editor_context');
+  return normalizeEntryEditorContext(rawContext);
+}
+
+async function refreshEntryEditorWindow() {
+  const context = await loadEntryEditorContext();
+  await loadAllData();
+
+  if (context.mode === ENTRY_EDITOR_MODE_EDIT) {
+    let entry = state.entries.find((item) => item.id === context.entryId);
+    if (!entry && context.entryId) {
+      entry = await getEntryById(context.entryId);
+    }
+
+    if (!entry) {
+      throw new Error(`Failed to load entry ${context.entryId}`);
+    }
+
+    applyEditEntryEditorFormState(entry);
+    return;
+  }
+
+  applyCreateEntryEditorFormState();
+}
+
+async function showAddEntryModal() {
+  try {
+    await invoke('open_entry_editor_create');
+  } catch (error) {
+    console.error('Failed to open entry editor:', error);
+  }
+}
+
+async function showEditEntryModal(entry) {
+  if (!entry?.id) {
+    return;
+  }
+
+  try {
+    await invoke('open_entry_editor_edit', { id: entry.id });
+  } catch (error) {
+    console.error('Failed to open entry editor:', error);
+  }
+}
+
+async function closeEntryModal() {
+  if (!isEntryEditorWindowRole()) {
+    return;
+  }
+
+  try {
+    await invoke('close_window');
+  } catch (error) {
+    console.error('Failed to close entry editor:', error);
+  }
 }
 
 function syncEntryFormRequirements() {
@@ -2204,8 +2353,10 @@ async function handleEntryFormSubmit(e) {
       savedEntry = await updateEntry(id, input);
     } else {
       savedEntry = await createEntry(input);
-      document.getElementById('entry-id').value = savedEntry.id;
-      document.getElementById('entry-modal-title').textContent = t('entry.modal_edit');
+      if (!isEntryEditorWindowRole()) {
+        document.getElementById('entry-id').value = savedEntry.id;
+        setEntryEditorTitles(ENTRY_EDITOR_MODE_EDIT);
+      }
     }
 
     try {
@@ -2217,7 +2368,12 @@ async function handleEntryFormSubmit(e) {
     }
 
     await loadAllData();
-    closeEntryModal();
+    if (isEntryEditorWindowRole()) {
+      await invoke('notify_entry_editor_saved');
+      await invoke('close_window');
+      return;
+    }
+    await closeEntryModal();
     renderEntriesList(state.entries);
   } catch (error) {
     // Error already shown via toast
@@ -2552,7 +2708,6 @@ async function handleUseTemplateFormSubmit(e) {
 function closeAllModals() {
   document.getElementById('about-modal').classList.add('hidden');
   document.getElementById('help-modal').classList.add('hidden');
-  document.getElementById('entry-modal').classList.add('hidden');
   document.getElementById('template-modal').classList.add('hidden');
   document.getElementById('use-template-modal').classList.add('hidden');
   document.getElementById('confirm-modal').classList.add('hidden');
@@ -2585,13 +2740,15 @@ async function duplicateEntry(id) {
     hotkey_filter: entry.hotkey_filter ?? null,
     hotkey_position: entry.hotkey_position ?? null,
     hotkey_detect_hidden: entry.hotkey_detect_hidden ?? null,
+    script_content: entry.script_content ?? null,
+    script_type: entry.script_type ?? null,
   };
 
   try {
     const newEntry = await createEntry(input);
     await loadAllData();
     renderEntriesList(state.entries);
-    showEditEntryModal(newEntry);
+    await showEditEntryModal(newEntry);
   } catch (error) {
     // Error already shown via toast
   }
@@ -2600,7 +2757,7 @@ async function duplicateEntry(id) {
 async function editEntry(id) {
   const entry = state.entries.find(e => e.id === id);
   if (entry) {
-    showEditEntryModal(entry);
+    await showEditEntryModal(entry);
   }
 }
 
@@ -2904,6 +3061,37 @@ async function refreshMainWindowAfterSettingsClose() {
   focusSearchInput();
 }
 
+async function initEntryEditorWindow() {
+  document.getElementById('btn-close-entry-editor').addEventListener('click', closeEntryModal);
+  document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
+  document.getElementById('btn-test-entry').addEventListener('click', handleEntryFormTest);
+  document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
+  document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
+  document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);
+  document.getElementById('entry-script-content').addEventListener('input', syncEntryFormRequirements);
+  document.getElementById('entry-hotkey-position').addEventListener('change', (e) => {
+    e.target.dataset.touched = 'true';
+  });
+  document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
+    e.target.dataset.touched = 'true';
+  });
+  document.getElementById('btn-window-spy').addEventListener('click', handleOpenWindowSpy);
+  document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
+  document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
+  document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
+  document.getElementById('btn-clear-entry-hotkey').addEventListener('click', () => {
+    document.getElementById('entry-hotkey').value = '';
+  });
+
+  setupHotkeyRecording('entry-hotkey');
+
+  await listen(ENTRY_EDITOR_OPENED_EVENT, async () => {
+    await refreshEntryEditorWindow();
+  });
+
+  await refreshEntryEditorWindow();
+}
+
 // ==================== Initialization ====================
 
 async function init() {
@@ -2969,6 +3157,10 @@ async function init() {
       document.getElementById('btn-close-settings').addEventListener('click', closeSettingsModal);
     }
 
+    if (isEntryEditorWindowRole()) {
+      await initEntryEditorWindow();
+    }
+
     // Settings tabs
     if (isSettingsWindowRole()) {
       document.querySelectorAll('.sidebar-item').forEach(item => {
@@ -2996,27 +3188,10 @@ async function init() {
       }
 
       document.getElementById('btn-add-entry').addEventListener('click', showAddEntryModal);
-      document.getElementById('btn-close-entry-modal').addEventListener('click', closeEntryModal);
-      document.getElementById('btn-cancel-entry').addEventListener('click', closeEntryModal);
-      document.getElementById('btn-test-entry').addEventListener('click', handleEntryFormTest);
-      document.getElementById('entry-form').addEventListener('submit', handleEntryFormSubmit);
-      document.getElementById('entry-type').addEventListener('change', updateEntryFormFields);
-      document.getElementById('entry-target').addEventListener('input', syncEntryFormRequirements);
-      document.getElementById('entry-script-content').addEventListener('input', syncEntryFormRequirements);
-      document.getElementById('entry-hotkey-position').addEventListener('change', (e) => {
-        e.target.dataset.touched = 'true';
+      await listen(ENTRY_EDITOR_SAVED_EVENT, async () => {
+        await loadAllData();
+        renderEntriesList(state.entries);
       });
-      document.getElementById('entry-hotkey-detect-hidden').addEventListener('change', (e) => {
-        e.target.dataset.touched = 'true';
-      });
-      document.getElementById('btn-window-spy').addEventListener('click', handleOpenWindowSpy);
-      document.getElementById('btn-browse-target').addEventListener('click', handleBrowseTarget);
-      document.getElementById('btn-browse-workdir').addEventListener('click', handleBrowseWorkdir);
-      document.getElementById('btn-browse-icon').addEventListener('click', handleBrowseIcon);
-      document.getElementById('btn-clear-entry-hotkey').addEventListener('click', () => {
-        document.getElementById('entry-hotkey').value = '';
-      });
-      setupHotkeyRecording('entry-hotkey');
       setupHotkeyRecording('setting-app-hotkey', handleSettingsChange);
       document.getElementById('btn-clear-app-hotkey').addEventListener('click', () => {
         document.getElementById('setting-app-hotkey').value = '';
@@ -3078,6 +3253,8 @@ async function init() {
       if (e.key === 'Escape') {
         if (hasOpenOverlayModal()) {
           closeAllModals();
+        } else if (isEntryEditorWindowRole()) {
+          closeEntryModal();
         } else if (isSettingsWindowRole()) {
           closeSettingsModal();
         }

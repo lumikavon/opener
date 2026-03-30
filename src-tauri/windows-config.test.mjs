@@ -18,3 +18,15 @@ test('tauri windows config pre-registers the settings window', async () => {
   assert.equal(settingsWindow.url, 'index.html?window=settings');
   assert.equal(settingsWindow.visible, false);
 });
+
+test('tauri windows config pre-registers the entry editor window', async () => {
+  const config = await readTauriConfig();
+  const windows = config?.app?.windows;
+
+  assert.ok(Array.isArray(windows), 'app.windows must be an array');
+
+  const entryEditorWindow = windows.find((window) => window.label === 'entry-editor');
+  assert.ok(entryEditorWindow, 'entry-editor window must be declared in tauri.conf.json');
+  assert.equal(entryEditorWindow.url, 'index.html?window=entry-editor');
+  assert.equal(entryEditorWindow.visible, false);
+});

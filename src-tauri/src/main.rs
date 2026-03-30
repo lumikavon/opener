@@ -118,6 +118,7 @@ fn main() {
 
             app.manage(AppState {
                 db: std::sync::Mutex::new(db),
+                entry_editor_session: std::sync::Mutex::new(None),
             });
 
             let app_handle = app.handle();
@@ -132,6 +133,12 @@ fn main() {
                 .is_none()
             {
                 windowing::create_settings_window(&app_handle)?;
+            }
+            if app_handle
+                .get_webview_window(windowing::ENTRY_EDITOR_WINDOW_LABEL)
+                .is_none()
+            {
+                windowing::create_entry_editor_window(&app_handle)?;
             }
 
             hotkeys::register_all_hotkeys(&app_handle, &hotkeys);
@@ -150,6 +157,7 @@ fn main() {
             }
 
             windowing::prepare_settings_window(&app_handle);
+            windowing::prepare_entry_editor_window(&app_handle);
 
             if let Err(error) = hotkeys::register_app_hotkey(&app_handle, &settings.app_hotkey) {
                 log::warn!(
@@ -194,6 +202,10 @@ fn main() {
             commands::get_settings,
             commands::update_settings,
             commands::open_settings_window,
+            commands::open_entry_editor_create,
+            commands::open_entry_editor_edit,
+            commands::get_entry_editor_context,
+            commands::notify_entry_editor_saved,
             // Script template commands
             commands::get_all_templates,
             commands::get_template,

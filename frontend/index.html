@@ -185,6 +185,9 @@
                     >
                   </div>
                 </div>
+                <div id="entries-type-filters" class="flex flex-wrap gap-2">
+                  <!-- Entry type filters will be rendered here -->
+                </div>
                 <div class="flex items-center justify-between text-sm">
                   <label class="flex items-center gap-2 text-gray-400 cursor-pointer">
                     <input type="checkbox" id="entries-select-all" class="w-4 h-4 rounded border-gray-600 text-primary-500 focus:ring-primary-500">
@@ -433,161 +436,170 @@
       </div>
     </div>
 
-    <!-- Entry Edit Modal -->
-    <div id="entry-modal" class="modal-overlay hidden">
-      <div class="modal flex flex-col animate-fade-in" style="width: 600px; max-height: 80vh;">
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700">
-          <h2 id="entry-modal-title" class="text-lg font-semibold" data-i18n="entry.modal_add">Add Entry</h2>
-          <button id="btn-close-entry-modal" class="btn-ghost p-1.5 rounded-lg">
-            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+    <!-- Entry Editor Window -->
+    <div id="entry-editor-window-root" class="hidden h-screen">
+      <div class="flex h-screen flex-col border border-gray-800 bg-gray-800">
+        <div class="drag-region flex items-center justify-between h-10 px-3 bg-gray-900 border-b border-gray-800">
+          <div class="flex items-center gap-2 px-2">
+            <svg class="w-5 h-5 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
             </svg>
-          </button>
+            <span id="entry-editor-window-title" class="text-sm font-medium text-gray-300" data-i18n="entry.modal_add">Add Entry</span>
+          </div>
+          <div class="flex items-center gap-1 no-drag">
+            <button id="btn-close-entry-editor" class="w-10 h-10 flex items-center justify-center text-gray-400 hover:text-white hover:bg-red-600 transition-colors" title="Close" data-i18n-title="title_bar.close">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <div class="p-6 overflow-y-auto flex-1 min-h-0">
-          <form id="entry-form" class="space-y-4">
-            <input type="hidden" id="entry-id">
-            <div>
-              <label class="label" data-i18n="entry.fields.name">Name *</label>
-              <input type="text" id="entry-name" class="input" required>
+          <div class="max-w-3xl mx-auto">
+            <div class="flex items-center justify-between mb-6">
+              <h2 id="entry-modal-title" class="text-lg font-semibold" data-i18n="entry.modal_add">Add Entry</h2>
             </div>
-            <div>
-              <label class="label" data-i18n="entry.fields.type">Type *</label>
-              <select id="entry-type" class="input" required>
-                <option value="app" data-i18n="entry.type_options.app">Application</option>
-                <option value="url" data-i18n="entry.type_options.url">URL</option>
-                <option value="file" data-i18n="entry.type_options.file">File</option>
-                <option value="dir" data-i18n="entry.type_options.dir">Directory</option>
-                <option value="cmd" data-i18n="entry.type_options.cmd">Command</option>
-                <option value="wsl" data-i18n="entry.type_options.wsl">WSL</option>
-                <option value="ssh" data-i18n="entry.type_options.ssh">SSH</option>
-                <option value="script" data-i18n="entry.type_options.script">Script</option>
-                <option value="shortcut" data-i18n="entry.type_options.shortcut">Shortcut (.lnk)</option>
-                <option value="ahk" data-i18n="entry.type_options.ahk">AutoHotkey</option>
-                <option value="hotkey_app" data-i18n="entry.type_options.hotkey_app">HotKey应用</option>
-              </select>
-            </div>
-            <div id="field-target">
-              <label class="label" data-i18n="entry.fields.target">Target *</label>
-              <div class="flex gap-2">
-                <input type="text" id="entry-target" class="input flex-1" required>
-                <button type="button" id="btn-browse-target" class="btn-secondary" data-i18n="actions.browse">Browse</button>
-              </div>
-            </div>
-            <div id="field-args">
-              <label class="label" data-i18n="entry.fields.args">Arguments</label>
-              <input type="text" id="entry-args" class="input" placeholder="Optional arguments" data-i18n-placeholder="entry.placeholders.args">
-            </div>
-            <div id="field-workdir">
-              <label class="label" data-i18n="entry.fields.workdir">Working Directory</label>
-              <div class="flex gap-2">
-                <input type="text" id="entry-workdir" class="input flex-1">
-                <button type="button" id="btn-browse-workdir" class="btn-secondary" data-i18n="actions.browse">Browse</button>
-              </div>
-            </div>
-            <div id="field-hotkey-app" class="hidden space-y-4">
+            <form id="entry-form" class="space-y-4">
+              <input type="hidden" id="entry-id">
               <div>
-                <label class="label" data-i18n="entry.fields.hotkey_filter">Window Filter *</label>
-                <div class="flex gap-2">
-                  <input type="text" id="entry-hotkey-filter" class="input flex-1" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
-                  <button type="button" id="btn-window-spy" class="btn-ghost p-2 rounded-lg" data-i18n-title="actions.window_spy" title="Window Match" aria-label="Window Match">
-                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m9-6a6 6 0 100 12 6 6 0 000-12z"/>
-                    </svg>
-                  </button>
-                </div>
+                <label class="label" data-i18n="entry.fields.name">Name *</label>
+                <input type="text" id="entry-name" class="input" required>
               </div>
-              <div class="grid grid-cols-2 gap-4 items-end">
-                <div>
-                  <label class="label" data-i18n="entry.fields.hotkey_position">Window Position *</label>
-                  <select id="entry-hotkey-position" class="input">
-                    <option value="keep" data-i18n="entry.position_options.keep" selected>Keep</option>
-                    <option value="left" data-i18n="entry.position_options.left">Left</option>
-                    <option value="right" data-i18n="entry.position_options.right">Right</option>
-                    <option value="max" data-i18n="entry.position_options.max">Maximize</option>
-                  </select>
-                </div>
-                <label class="flex items-center gap-2 cursor-pointer pb-2">
-                  <input type="checkbox" id="entry-hotkey-detect-hidden" class="w-4 h-4 rounded border-gray-600 text-primary-500">
-                  <span class="text-sm" data-i18n="entry.fields.hotkey_detect_hidden">Detect hidden windows</span>
-                </label>
-              </div>
-            </div>
-            <div id="field-description">
-              <label class="label" data-i18n="entry.fields.description">Description</label>
-              <input type="text" id="entry-description" class="input" placeholder="Optional description" data-i18n-placeholder="entry.placeholders.description">
-            </div>
-            <div id="field-tags">
-              <label class="label" data-i18n="entry.fields.tags">Tags</label>
-              <input type="text" id="entry-tags" class="input" placeholder="Comma-separated tags" data-i18n-placeholder="entry.placeholders.tags">
-            </div>
-            <div id="field-hotkey">
-              <label class="label" data-i18n="entry.fields.global_hotkey">Global Hotkey (optional)</label>
-              <div class="flex gap-2">
-                <input type="text" id="entry-hotkey" class="input flex-1" placeholder="Press keys..." data-i18n-placeholder="entry.placeholders.global_hotkey" readonly>
-                <button type="button" id="btn-clear-entry-hotkey" class="btn-secondary" data-i18n="actions.clear">Clear</button>
-              </div>
-              <p class="text-xs text-gray-500 mt-1" data-i18n="entry.helpers.global_hotkey">
-                Click and press your desired key combination. Leave empty to skip.
-              </p>
-            </div>
-            <div id="field-icon">
-              <label class="label" data-i18n="entry.fields.icon_path">Icon Path</label>
-              <div class="flex gap-2">
-                <input type="text" id="entry-icon" class="input flex-1">
-                <button type="button" id="btn-browse-icon" class="btn-secondary" data-i18n="actions.browse">Browse</button>
-              </div>
-            </div>
-
-            <!-- SSH-specific fields -->
-            <div id="field-ssh" class="hidden space-y-4">
               <div>
-                <label class="label" data-i18n="entry.fields.ssh_host">SSH Host *</label>
-                <input type="text" id="entry-ssh-host" class="input" placeholder="hostname or IP" data-i18n-placeholder="entry.placeholders.ssh_host">
-              </div>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <label class="label" data-i18n="entry.fields.ssh_user">SSH User</label>
-                  <input type="text" id="entry-ssh-user" class="input" placeholder="root" data-i18n-placeholder="entry.placeholders.ssh_user">
-                </div>
-                <div>
-                  <label class="label" data-i18n="entry.fields.ssh_port">SSH Port</label>
-                  <input type="number" id="entry-ssh-port" class="input" placeholder="22">
-                </div>
-              </div>
-            </div>
-
-            <!-- WSL-specific fields -->
-            <div id="field-wsl" class="hidden">
-              <label class="label" data-i18n="entry.fields.wsl_distro">WSL Distribution</label>
-              <input type="text" id="entry-wsl-distro" class="input" placeholder="Ubuntu" data-i18n-placeholder="entry.placeholders.wsl_distro">
-            </div>
-
-            <!-- Script-specific fields -->
-            <div id="field-script" class="hidden">
-              <div class="flex items-center gap-2 mb-1">
-                <label class="label mb-0 flex-1" data-i18n="entry.fields.script_content">Script Content</label>
-                <select id="entry-script-type" class="input w-auto text-sm px-2 py-1">
-                  <option value="powershell">PowerShell</option>
-                  <option value="bash">Bash</option>
-                  <option value="python">Python</option>
-                  <option value="cmd">CMD</option>
+                <label class="label" data-i18n="entry.fields.type">Type *</label>
+                <select id="entry-type" class="input" required>
+                  <option value="app" data-i18n="entry.type_options.app">Application</option>
+                  <option value="url" data-i18n="entry.type_options.url">URL</option>
+                  <option value="file" data-i18n="entry.type_options.file">File</option>
+                  <option value="dir" data-i18n="entry.type_options.dir">Directory</option>
+                  <option value="cmd" data-i18n="entry.type_options.cmd">Command</option>
+                  <option value="wsl" data-i18n="entry.type_options.wsl">WSL</option>
+                  <option value="ssh" data-i18n="entry.type_options.ssh">SSH</option>
+                  <option value="script" data-i18n="entry.type_options.script">Script</option>
+                  <option value="shortcut" data-i18n="entry.type_options.shortcut">Shortcut (.lnk)</option>
+                  <option value="ahk" data-i18n="entry.type_options.ahk">AutoHotkey</option>
+                  <option value="hotkey_app" data-i18n="entry.type_options.hotkey_app">HotKey应用</option>
                 </select>
               </div>
-              <textarea id="entry-script-content" class="input h-32 font-mono text-sm" placeholder="Enter script content..." data-i18n-placeholder="entry.placeholders.script_content"></textarea>
-            </div>
+              <div id="field-target">
+                <label class="label" data-i18n="entry.fields.target">Target *</label>
+                <div class="flex gap-2">
+                  <input type="text" id="entry-target" class="input flex-1" required>
+                  <button type="button" id="btn-browse-target" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+                </div>
+              </div>
+              <div id="field-args">
+                <label class="label" data-i18n="entry.fields.args">Arguments</label>
+                <input type="text" id="entry-args" class="input" placeholder="Optional arguments" data-i18n-placeholder="entry.placeholders.args">
+              </div>
+              <div id="field-workdir">
+                <label class="label" data-i18n="entry.fields.workdir">Working Directory</label>
+                <div class="flex gap-2">
+                  <input type="text" id="entry-workdir" class="input flex-1">
+                  <button type="button" id="btn-browse-workdir" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+                </div>
+              </div>
+              <div id="field-hotkey-app" class="hidden space-y-4">
+                <div>
+                  <label class="label" data-i18n="entry.fields.hotkey_filter">Window Filter *</label>
+                  <div class="flex gap-2">
+                    <input type="text" id="entry-hotkey-filter" class="input flex-1" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
+                    <button type="button" id="btn-window-spy" class="btn-ghost p-2 rounded-lg" data-i18n-title="actions.window_spy" title="Window Match" aria-label="Window Match">
+                      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m9-6a6 6 0 100 12 6 6 0 000-12z"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 items-end">
+                  <div>
+                    <label class="label" data-i18n="entry.fields.hotkey_position">Window Position *</label>
+                    <select id="entry-hotkey-position" class="input">
+                      <option value="keep" data-i18n="entry.position_options.keep" selected>Keep</option>
+                      <option value="left" data-i18n="entry.position_options.left">Left</option>
+                      <option value="right" data-i18n="entry.position_options.right">Right</option>
+                      <option value="max" data-i18n="entry.position_options.max">Maximize</option>
+                    </select>
+                  </div>
+                  <label class="flex items-center gap-2 cursor-pointer pb-2">
+                    <input type="checkbox" id="entry-hotkey-detect-hidden" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                    <span class="text-sm" data-i18n="entry.fields.hotkey_detect_hidden">Detect hidden windows</span>
+                  </label>
+                </div>
+              </div>
+              <div id="field-description">
+                <label class="label" data-i18n="entry.fields.description">Description</label>
+                <input type="text" id="entry-description" class="input" placeholder="Optional description" data-i18n-placeholder="entry.placeholders.description">
+              </div>
+              <div id="field-tags">
+                <label class="label" data-i18n="entry.fields.tags">Tags</label>
+                <input type="text" id="entry-tags" class="input" placeholder="Comma-separated tags" data-i18n-placeholder="entry.placeholders.tags">
+              </div>
+              <div id="field-hotkey">
+                <label class="label" data-i18n="entry.fields.global_hotkey">Global Hotkey (optional)</label>
+                <div class="flex gap-2">
+                  <input type="text" id="entry-hotkey" class="input flex-1" placeholder="Press keys..." data-i18n-placeholder="entry.placeholders.global_hotkey" readonly>
+                  <button type="button" id="btn-clear-entry-hotkey" class="btn-secondary" data-i18n="actions.clear">Clear</button>
+                </div>
+                <p class="text-xs text-gray-500 mt-1" data-i18n="entry.helpers.global_hotkey">
+                  Click and press your desired key combination. Leave empty to skip.
+                </p>
+              </div>
+              <div id="field-icon">
+                <label class="label" data-i18n="entry.fields.icon_path">Icon Path</label>
+                <div class="flex gap-2">
+                  <input type="text" id="entry-icon" class="input flex-1">
+                  <button type="button" id="btn-browse-icon" class="btn-secondary" data-i18n="actions.browse">Browse</button>
+                </div>
+              </div>
 
-            <div class="flex items-center gap-4">
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="entry-show-terminal" class="w-4 h-4 rounded border-gray-600 text-primary-500">
-                <span class="text-sm" data-i18n="entry.fields.show_terminal">Show terminal window</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="entry-confirm" class="w-4 h-4 rounded border-gray-600 text-primary-500">
-                <span class="text-sm" data-i18n="entry.fields.require_confirm">Require confirmation</span>
-              </label>
-            </div>
-          </form>
+              <div id="field-ssh" class="hidden space-y-4">
+                <div>
+                  <label class="label" data-i18n="entry.fields.ssh_host">SSH Host *</label>
+                  <input type="text" id="entry-ssh-host" class="input" placeholder="hostname or IP" data-i18n-placeholder="entry.placeholders.ssh_host">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                  <div>
+                    <label class="label" data-i18n="entry.fields.ssh_user">SSH User</label>
+                    <input type="text" id="entry-ssh-user" class="input" placeholder="root" data-i18n-placeholder="entry.placeholders.ssh_user">
+                  </div>
+                  <div>
+                    <label class="label" data-i18n="entry.fields.ssh_port">SSH Port</label>
+                    <input type="number" id="entry-ssh-port" class="input" placeholder="22">
+                  </div>
+                </div>
+              </div>
+
+              <div id="field-wsl" class="hidden">
+                <label class="label" data-i18n="entry.fields.wsl_distro">WSL Distribution</label>
+                <input type="text" id="entry-wsl-distro" class="input" placeholder="Ubuntu" data-i18n-placeholder="entry.placeholders.wsl_distro">
+              </div>
+
+              <div id="field-script" class="hidden">
+                <div class="flex items-center gap-2 mb-1">
+                  <label class="label mb-0 flex-1" data-i18n="entry.fields.script_content">Script Content</label>
+                  <select id="entry-script-type" class="input w-auto text-sm px-2 py-1">
+                    <option value="powershell">PowerShell</option>
+                    <option value="bash">Bash</option>
+                    <option value="python">Python</option>
+                    <option value="cmd">CMD</option>
+                  </select>
+                </div>
+                <textarea id="entry-script-content" class="input h-32 font-mono text-sm" placeholder="Enter script content..." data-i18n-placeholder="entry.placeholders.script_content"></textarea>
+              </div>
+
+              <div class="flex items-center gap-4">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="entry-show-terminal" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                  <span class="text-sm" data-i18n="entry.fields.show_terminal">Show terminal window</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" id="entry-confirm" class="w-4 h-4 rounded border-gray-600 text-primary-500">
+                  <span class="text-sm" data-i18n="entry.fields.require_confirm">Require confirmation</span>
+                </label>
+              </div>
+            </form>
+          </div>
         </div>
         <div class="flex justify-end gap-3 px-6 py-4 border-t border-gray-700">
           <button type="button" id="btn-cancel-entry" class="btn-secondary" data-i18n="actions.cancel">Cancel</button>

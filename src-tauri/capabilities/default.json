@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capabilities for Opener",
-  "windows": ["main", "settings"],
+  "windows": ["main", "settings", "entry-editor"],
   "permissions": [
     "core:default",
     "shell:allow-open",

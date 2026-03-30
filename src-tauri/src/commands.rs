@@ -18,6 +18,21 @@ use tauri_plugin_dialog::DialogExt;
 
 pub struct AppState {
     pub db: Mutex<crate::database::Database>,
+    pub entry_editor_session: Mutex<Option<EntryEditorSession>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EntryEditorMode {
+    Create,
+    Edit,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntryEditorSession {
+    pub mode: EntryEditorMode,
+    pub entry_id: Option<String>,
+    pub opener: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -480,6 +495,61 @@ pub fn open_settings_window(app: AppHandle) -> CommandResult<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub fn open_entry_editor_create(
+    app: AppHandle,
+    state: State<AppState>,
+    window: Window,
+) -> CommandResult<()> {
+    let mut session = state.entry_editor_session.lock().map_err(|_| lock_error())?;
+    *session = Some(EntryEditorSession {
+        mode: EntryEditorMode::Create,
+        entry_id: None,
+        opener: window.label().to_string(),
+    });
+    drop(session);
+
+    windowing::open_entry_editor_window(&app).map_err(|error| CommandError {
+        message: error.to_string(),
+        code: "WINDOW_ERROR".to_string(),
+    })?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_entry_editor_edit(
+    app: AppHandle,
+    state: State<AppState>,
+    window: Window,
+    id: String,
+) -> CommandResult<()> {
+    let mut session = state.entry_editor_session.lock().map_err(|_| lock_error())?;
+    *session = Some(EntryEditorSession {
+        mode: EntryEditorMode::Edit,
+        entry_id: Some(id),
+        opener: window.label().to_string(),
+    });
+    drop(session);
+
+    windowing::open_entry_editor_window(&app).map_err(|error| CommandError {
+        message: error.to_string(),
+        code: "WINDOW_ERROR".to_string(),
+    })?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_entry_editor_context(state: State<AppState>) -> CommandResult<Option<EntryEditorSession>> {
+    let session = state.entry_editor_session.lock().map_err(|_| lock_error())?;
+    Ok(session.clone())
+}
+
+#[tauri::command]
+pub fn notify_entry_editor_saved(app: AppHandle) -> CommandResult<()> {
+    windowing::emit_entry_editor_saved(&app);
+    Ok(())
+}
+
 // ==================== Template Commands ====================
 
 #[tauri::command]
@@ -643,9 +713,18 @@ pub fn toggle_maximize_window(window: Window) -> CommandResult<()> {
 }
 
 #[tauri::command]
-pub fn close_window(app: AppHandle, window: Window) -> CommandResult<()> {
+pub fn close_window(app: AppHandle, state: State<AppState>, window: Window) -> CommandResult<()> {
     if windowing::is_settings_window(window.label()) {
         windowing::close_settings_window(&app);
+        return Ok(());
+    }
+
+    if windowing::is_entry_editor_window(window.label()) {
+        let mut session = state.entry_editor_session.lock().map_err(|_| lock_error())?;
+        *session = None;
+        drop(session);
+
+        windowing::close_entry_editor_window(&app);
         return Ok(());
     }
 

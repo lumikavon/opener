@@ -15,4 +15,8 @@ test('default capability grants the settings window access to Tauri IPC', async 
     capability.windows.includes('settings'),
     'the settings window must be listed in src-tauri/capabilities/default.json',
   );
+  assert.ok(
+    capability.windows.includes('entry-editor'),
+    'the entry-editor window must be listed in src-tauri/capabilities/default.json',
+  );
 });
