@@ -405,6 +405,7 @@
               <li data-i18n="help_modal.sections.add_entry.item2">进入“条目”标签页</li>
               <li data-i18n="help_modal.sections.add_entry.item3">点击“新增条目”</li>
               <li data-i18n="help_modal.sections.add_entry.item4">选择类型并填写对应字段</li>
+              <li data-i18n="help_modal.sections.add_entry.item5">HotKey应用的窗口匹配支持标题、ahk_exe 进程名，或标题 + ahk_exe 联合写法。</li>
             </ol>
           </div>
 
@@ -503,13 +504,14 @@
                 <div>
                   <label class="label" data-i18n="entry.fields.hotkey_filter">Window Filter *</label>
                   <div class="flex gap-2">
-                    <input type="text" id="entry-hotkey-filter" class="input flex-1" placeholder="Window title or ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
+                    <input type="text" id="entry-hotkey-filter" class="input flex-1" placeholder="Window title / ahk_exe app.exe / Title ahk_exe app.exe" data-i18n-placeholder="entry.placeholders.hotkey_filter">
                     <button type="button" id="btn-window-spy" class="btn-ghost p-2 rounded-lg" data-i18n-title="actions.window_spy" title="Window Match" aria-label="Window Match">
                       <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v3m0 12v3m9-9h-3M6 12H3m9-6a6 6 0 100 12 6 6 0 000-12z"/>
                       </svg>
                     </button>
                   </div>
+                  <p class="text-xs text-gray-500 mt-1" data-i18n="entry.helpers.hotkey_filter">Example: OpenAI-ChatGPT-Web ahk_exe webcontainer.exe</p>
                 </div>
                 <div class="grid grid-cols-2 gap-4 items-end">
                   <div>

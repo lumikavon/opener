@@ -209,6 +209,7 @@ const translations = {
           item2: '进入“条目”标签页',
           item3: '点击“新增条目”',
           item4: '选择类型并填写对应字段',
+          item5: 'HotKey应用的窗口匹配支持标题、ahk_exe 进程名，或标题 + ahk_exe 联合写法，例如 OpenAI-ChatGPT-Web ahk_exe webcontainer.exe。',
         },
         shortcuts: {
           title: '键盘操作',
@@ -262,7 +263,7 @@ const translations = {
         description: '可选描述',
         tags: '逗号分隔的标签',
         global_hotkey: '按下组合键...',
-        hotkey_filter: '窗口标题或 ahk_exe 程序名',
+        hotkey_filter: '窗口标题 / ahk_exe 程序名 / 标题 ahk_exe 程序名',
         ssh_host: '主机名或 IP',
         ssh_user: 'root',
         wsl_distro: 'Ubuntu',
@@ -271,6 +272,7 @@ const translations = {
       helpers: {
         global_hotkey: '点击并按下所需组合键，留空则不绑定。',
         hotkey_required: '点击并按下组合键（必填）。',
+        hotkey_filter: '示例：OpenAI-ChatGPT-Web ahk_exe webcontainer.exe',
       },
       target_labels: {
         url: 'URL *',
@@ -570,6 +572,7 @@ const translations = {
           item2: 'Go to the “Entries” tab',
           item3: 'Click “Add Entry”',
           item4: 'Choose a type and fill in the fields',
+          item5: 'HotKey App window filters support title only, ahk_exe process only, or a combined title + ahk_exe selector such as OpenAI-ChatGPT-Web ahk_exe webcontainer.exe.',
         },
         shortcuts: {
           title: 'Keyboard',
@@ -623,7 +626,7 @@ const translations = {
         description: 'Optional description',
         tags: 'Comma-separated tags',
         global_hotkey: 'Press keys...',
-        hotkey_filter: 'Window title or ahk_exe process',
+        hotkey_filter: 'Window title / ahk_exe process / Title ahk_exe process',
         ssh_host: 'hostname or IP',
         ssh_user: 'root',
         wsl_distro: 'Ubuntu',
@@ -632,6 +635,7 @@ const translations = {
       helpers: {
         global_hotkey: 'Click and press a key combination. Leave empty to skip.',
         hotkey_required: 'Click and press a key combination (required).',
+        hotkey_filter: 'Example: OpenAI-ChatGPT-Web ahk_exe webcontainer.exe',
       },
       target_labels: {
         url: 'URL *',

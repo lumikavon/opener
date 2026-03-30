@@ -693,18 +693,20 @@ fn split_hotkey_target(value: &str) -> (String, Option<String>) {
 enum WindowFilter {
     Title(String),
     Exe(String),
+    TitleAndExe { title: String, exe: String },
 }
 
 #[cfg(windows)]
 fn build_window_filter(entry: &Entry) -> WindowFilter {
     let raw = entry.hotkey_filter.as_deref().unwrap_or("").trim();
     if !raw.is_empty() {
-        let lower = raw.to_lowercase();
-        if lower.starts_with("ahk_exe ") {
-            let exe_name = raw.get("ahk_exe ".len()..).unwrap_or("").trim();
-            if !exe_name.is_empty() {
-                return WindowFilter::Exe(exe_name.to_string());
-            }
+        if let Some((title, exe)) = split_window_filter_parts(raw) {
+            return match (title, exe) {
+                (Some(title), Some(exe)) => WindowFilter::TitleAndExe { title, exe },
+                (Some(title), None) => WindowFilter::Title(title),
+                (None, Some(exe)) => WindowFilter::Exe(exe),
+                (None, None) => WindowFilter::Title(raw.to_string()),
+            };
         }
         return WindowFilter::Title(raw.to_string());
     }
@@ -718,6 +720,51 @@ fn build_window_filter(entry: &Entry) -> WindowFilter {
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| target);
     WindowFilter::Exe(exe_name)
+}
+
+#[cfg(windows)]
+fn split_window_filter_parts(raw: &str) -> Option<(Option<String>, Option<String>)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let lower = trimmed.to_lowercase();
+    let token = "ahk_exe";
+    for (index, _) in lower.match_indices(token) {
+        let before = &trimmed[..index];
+        let after_start = index + token.len();
+        let after = &trimmed[after_start..];
+        let has_left_boundary = before.is_empty()
+            || before
+                .chars()
+                .last()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false);
+        let has_right_boundary = after.is_empty()
+            || after
+                .chars()
+                .next()
+                .map(|ch| ch.is_whitespace())
+                .unwrap_or(false);
+
+        if !has_left_boundary || !has_right_boundary {
+            continue;
+        }
+
+        let title = before.trim();
+        let exe = after.trim();
+        if exe.is_empty() {
+            return Some((Some(trimmed.to_string()), None));
+        }
+
+        return Some((
+            (!title.is_empty()).then(|| title.to_string()),
+            Some(exe.to_string()),
+        ));
+    }
+
+    Some((Some(trimmed.to_string()), None))
 }
 
 #[cfg(windows)]
@@ -767,6 +814,9 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL 
     let matched = match data.filter {
         WindowFilter::Title(title) => match_window_title(hwnd, title),
         WindowFilter::Exe(exe) => match_window_exe(hwnd, exe),
+        WindowFilter::TitleAndExe { title, exe } => {
+            match_window_title(hwnd, title) && match_window_exe(hwnd, exe)
+        }
     };
 
     if matched {
@@ -1199,5 +1249,29 @@ mod tests {
 
         let preview = get_execution_preview(&entry);
         assert!(preview.contains("admin@server.example.com:2222"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_build_window_filter_keeps_combined_title_and_exe_selector() {
+        let mut entry = Entry::new(
+            "Test".to_string(),
+            EntryType::HotkeyApp,
+            "C:\\Program Files\\WebContainer\\webcontainer.exe".to_string(),
+        );
+        entry.hotkey_filter = Some("OpenAI-ChatGPT-Web ahk_exe webcontainer.exe".to_string());
+
+        match build_window_filter(&entry) {
+            WindowFilter::TitleAndExe { title, exe } => {
+                assert_eq!(title, "OpenAI-ChatGPT-Web");
+                assert_eq!(exe, "webcontainer.exe");
+            }
+            WindowFilter::Title(_) => {
+                panic!("combined title + ahk_exe selector was parsed as title-only")
+            }
+            WindowFilter::Exe(_) => {
+                panic!("combined title + ahk_exe selector was parsed as exe-only")
+            }
+        }
     }
 }
