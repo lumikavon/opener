@@ -107,22 +107,22 @@ npm run tauri:build
 #### Windows (MSI/NSIS)
 ```bash
 npm run tauri:build
-# Output: src-tauri/target/release/bundle/msi/Opener_1.0.0_x64_en-US.msi
-# Output: src-tauri/target/release/bundle/nsis/Opener_1.0.0_x64-setup.exe
+# Output: src-tauri/target/release/bundle/msi/Opener_1.0.1_x64_en-US.msi
+# Output: src-tauri/target/release/bundle/nsis/Opener_1.0.1_x64-setup.exe
 ```
 
 #### macOS (DMG/App Bundle)
 ```bash
 npm run tauri:build
-# Output: src-tauri/target/release/bundle/dmg/Opener_1.0.0_x64.dmg
+# Output: src-tauri/target/release/bundle/dmg/Opener_1.0.1_x64.dmg
 # Output: src-tauri/target/release/bundle/macos/Opener.app
 ```
 
 #### Linux (AppImage/Deb)
 ```bash
 npm run tauri:build
-# Output: src-tauri/target/release/bundle/appimage/opener_1.0.0_amd64.AppImage
-# Output: src-tauri/target/release/bundle/deb/opener_1.0.0_amd64.deb
+# Output: src-tauri/target/release/bundle/appimage/opener_1.0.1_amd64.AppImage
+# Output: src-tauri/target/release/bundle/deb/opener_1.0.1_amd64.deb
 ```
 
 ### Build Output Locations

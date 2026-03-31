@@ -1,6 +1,6 @@
 [package]
 name = "opener"
-version = "1.0.0"
+version = "1.0.1"
 description = "Desktop Launcher Application"
 authors = ["Opener Team"]
 edition = "2021"

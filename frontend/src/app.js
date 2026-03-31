@@ -87,7 +87,7 @@ const translations = {
   'zh-CN': {
     app: {
       name: 'Opener',
-      version: '1.0.0',
+      version: '1.0.1',
       author: 'virtualink',
       wechat: 'virtualink',
     },
@@ -173,7 +173,7 @@ const translations = {
       about: {
         title: '关于 Opener',
         subtitle: '桌面启动器应用',
-        version: '版本 1.0.0',
+        version: '版本 1.0.1',
         built_with: '基于 Tauri v2、HTML5、TailwindCSS 和 SQLite 构建',
         offline: '所有依赖已本地打包 - 无需联网',
       },
@@ -450,7 +450,7 @@ const translations = {
   'en-US': {
     app: {
       name: 'Opener',
-      version: '1.0.0',
+      version: '1.0.1',
       author: 'virtualink',
       wechat: 'virtualink',
     },
@@ -536,7 +536,7 @@ const translations = {
       about: {
         title: 'About Opener',
         subtitle: 'Desktop Launcher Application',
-        version: 'Version 1.0.0',
+        version: 'Version 1.0.1',
         built_with: 'Built with Tauri v2, HTML5, TailwindCSS, and SQLite',
         offline: 'All dependencies are bundled locally - no internet required',
       },
