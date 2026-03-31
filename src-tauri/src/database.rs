@@ -1437,8 +1437,9 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                                   description, enabled, confirm_before_run, show_terminal,
                                   wsl_distro, ssh_host, ssh_user, ssh_port, ssh_key_id,
                                   env_vars, hotkey_filter, hotkey_position, hotkey_detect_hidden,
+                                  script_content, script_type,
                                   created_at, updated_at, last_used_at, use_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27)",
             params![
                 entry.id,
                 entry.name,
@@ -1461,6 +1462,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 entry.hotkey_filter,
                 entry.hotkey_position,
                 entry.hotkey_detect_hidden,
+                entry.script_content,
+                entry.script_type,
                 entry.created_at.to_rfc3339(),
                 entry.updated_at.to_rfc3339(),
                 entry.last_used_at.map(|dt| dt.to_rfc3339()),
@@ -1477,7 +1480,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                     confirm_before_run = ?11, show_terminal = ?12, wsl_distro = ?13,
                     ssh_host = ?14, ssh_user = ?15, ssh_port = ?16, ssh_key_id = ?17,
                     env_vars = ?18, hotkey_filter = ?19, hotkey_position = ?20,
-                    hotkey_detect_hidden = ?21, updated_at = ?22
+                    hotkey_detect_hidden = ?21, script_content = ?22, script_type = ?23,
+                    updated_at = ?24
              WHERE id = ?1",
             params![
                 entry.id,
@@ -1501,6 +1505,8 @@ DoRunApp(name, executable, workdir, filter, position := "keep", detectHidden := 
                 entry.hotkey_filter,
                 entry.hotkey_position,
                 entry.hotkey_detect_hidden,
+                entry.script_content,
+                entry.script_type,
                 Utc::now().to_rfc3339(),
             ],
         )?;
@@ -1812,5 +1818,125 @@ mod tests {
         let entries = db2.get_all_entries().unwrap();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].name, "Export Test");
+    }
+
+    #[test]
+    fn test_import_export_preserves_script_fields() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::new(&db_path).unwrap();
+
+        let input = CreateEntryInput {
+            name: "Script Export".to_string(),
+            entry_type: EntryType::Script,
+            target: String::new(),
+            args: None,
+            workdir: Some("D:\\@human\\myself".to_string()),
+            icon_path: None,
+            tags: None,
+            description: None,
+            enabled: Some(true),
+            confirm_before_run: Some(false),
+            show_terminal: Some(true),
+            wsl_distro: None,
+            ssh_host: None,
+            ssh_user: None,
+            ssh_port: None,
+            ssh_key_id: None,
+            env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
+            script_content: Some("xme".to_string()),
+            script_type: Some("powershell".to_string()),
+        };
+        db.create_entry(&input).unwrap();
+
+        let export_data = db.export_all().unwrap();
+
+        let dir2 = tempdir().unwrap();
+        let db_path2 = dir2.path().join("test2.db");
+        let db2 = Database::new(&db_path2).unwrap();
+
+        db2.import_data(&export_data, ImportStrategy::AddOnly)
+            .unwrap();
+
+        let entries = db2.get_all_entries().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].script_content.as_deref(), Some("xme"));
+        assert_eq!(entries[0].script_type.as_deref(), Some("powershell"));
+    }
+
+    #[test]
+    fn test_import_merge_by_name_updates_script_fields() {
+        let dir = tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        let db = Database::new(&db_path).unwrap();
+
+        let existing = CreateEntryInput {
+            name: "Script Merge".to_string(),
+            entry_type: EntryType::Script,
+            target: String::new(),
+            args: None,
+            workdir: None,
+            icon_path: None,
+            tags: None,
+            description: None,
+            enabled: Some(true),
+            confirm_before_run: Some(false),
+            show_terminal: Some(false),
+            wsl_distro: None,
+            ssh_host: None,
+            ssh_user: None,
+            ssh_port: None,
+            ssh_key_id: None,
+            env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
+            script_content: None,
+            script_type: None,
+        };
+        let existing_entry = db.create_entry(&existing).unwrap();
+
+        let mut export_data = db.export_all().unwrap();
+        export_data.entries = vec![Entry {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: "Script Merge".to_string(),
+            entry_type: EntryType::Script,
+            target: String::new(),
+            args: None,
+            workdir: Some("D:\\@human\\myself".to_string()),
+            icon_path: None,
+            tags: None,
+            description: None,
+            enabled: true,
+            confirm_before_run: Some(false),
+            show_terminal: Some(true),
+            wsl_distro: None,
+            ssh_host: None,
+            ssh_user: None,
+            ssh_port: None,
+            ssh_key_id: None,
+            env_vars: None,
+            hotkey_filter: None,
+            hotkey_position: None,
+            hotkey_detect_hidden: None,
+            script_content: Some("xme".to_string()),
+            script_type: Some("powershell".to_string()),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_used_at: None,
+            use_count: 0,
+        }];
+
+        let result = db
+            .import_data(&export_data, ImportStrategy::MergeByName)
+            .unwrap();
+        assert_eq!(result.entries_updated, 1);
+
+        let merged = db.get_entry(&existing_entry.id).unwrap();
+        assert_eq!(merged.script_content.as_deref(), Some("xme"));
+        assert_eq!(merged.script_type.as_deref(), Some("powershell"));
     }
 }
