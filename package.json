@@ -1,6 +1,6 @@
 {
   "name": "opener",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Desktop launcher application with offline support",
   "scripts": {
     "dev": "vite",
