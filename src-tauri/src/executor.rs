@@ -341,7 +341,7 @@ fn execute_script_file(entry: &Entry, path: &str) -> ExecutorResult<()> {
                         "",
                         "cmd",
                         "/k",
-                        "powershell",
+                        "pwsh",
                         "-ExecutionPolicy",
                         "Bypass",
                         "-File",
@@ -349,7 +349,7 @@ fn execute_script_file(entry: &Entry, path: &str) -> ExecutorResult<()> {
                     ]);
                     c
                 } else {
-                    let mut c = Command::new("powershell");
+                    let mut c = Command::new("pwsh");
                     c.args(["-ExecutionPolicy", "Bypass", "-File", path]);
                     c.creation_flags(0x08000000);
                     c
