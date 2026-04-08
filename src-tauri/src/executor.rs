@@ -342,6 +342,7 @@ fn execute_script_file(entry: &Entry, path: &str) -> ExecutorResult<()> {
                         "cmd",
                         "/k",
                         "pwsh",
+                        "-NoProfile",
                         "-ExecutionPolicy",
                         "Bypass",
                         "-File",
@@ -350,7 +351,7 @@ fn execute_script_file(entry: &Entry, path: &str) -> ExecutorResult<()> {
                     c
                 } else {
                     let mut c = Command::new("pwsh");
-                    c.args(["-ExecutionPolicy", "Bypass", "-File", path]);
+                    c.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path]);
                     c.creation_flags(0x08000000);
                     c
                 }
@@ -465,8 +466,8 @@ fn execute_script_content(entry: &Entry, content: &str, script_type: &str) -> Ex
             "cmd" => ("bat", "cmd", vec!["/c"]),
             _ => (
                 "ps1",
-                "powershell",
-                vec!["-ExecutionPolicy", "Bypass", "-File"],
+                "pwsh",
+                vec!["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"],
             ),
         };
 
